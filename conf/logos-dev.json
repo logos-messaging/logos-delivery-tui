@@ -1,0 +1,10 @@
+{
+  "preset": "logos.dev",
+  "mode": "Core",
+  "messagingOverrides": {
+    "logLevel": "INFO",
+    "tcp-port": 60100,
+    "discv5-udp-port": 9100,
+    "nat": "none"
+  }
+}

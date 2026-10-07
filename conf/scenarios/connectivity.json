@@ -1,0 +1,20 @@
+{
+  "name": "connectivity",
+  "nodeConf": "../logos-test.json",
+  "steps": [
+    { "action": "waitHealthy", "status": "PartiallyConnected", "timeoutS": 90 },
+    { "action": "subscribe", "contentTopic": "/logos-delivery-tui/1/ping/proto" },
+    { "action": "sendPeriodic", "contentTopic": "/logos-delivery-tui/1/ping/proto",
+      "payload": "conn-test #{seq}", "intervalMs": 3000 },
+    { "action": "sleep", "ms": 10000 },
+    { "action": "log", "msg": "dropping all peers" },
+    { "action": "disconnectAllPeers" },
+    { "action": "sleep", "ms": 5000 },
+    { "action": "waitHealthy", "status": "PartiallyConnected", "timeoutS": 120 },
+    { "action": "log", "msg": "recovered, restarting the node" },
+    { "action": "restartNode" },
+    { "action": "waitHealthy", "status": "PartiallyConnected", "timeoutS": 120 },
+    { "action": "sleep", "ms": 10000 },
+    { "action": "expect", "metric": "errors", "op": "==", "value": 0 }
+  ]
+}

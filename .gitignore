@@ -1,0 +1,11 @@
+nimbledeps/
+nimble.paths
+nimble.develop
+nimcache/
+build/
+/logos_delivery_tui
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3*
+.DS_Store

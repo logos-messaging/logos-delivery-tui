@@ -1,0 +1,13 @@
+{
+  "name": "ping",
+  "nodeConf": "../logos-test.json",
+  "steps": [
+    { "action": "waitHealthy", "status": "PartiallyConnected", "timeoutS": 90 },
+    { "action": "subscribe", "contentTopic": "/logos-delivery-tui/1/ping/proto" },
+    { "action": "sendPeriodic", "contentTopic": "/logos-delivery-tui/1/ping/proto",
+      "payload": "ping #{seq} from {peerId} at {ts}", "intervalMs": 2000, "count": 5 },
+    { "action": "sleep", "ms": 11000 },
+    { "action": "expect", "metric": "sent", "op": ">=", "value": 5, "timeoutS": 30 },
+    { "action": "expect", "metric": "errors", "op": "==", "value": 0 }
+  ]
+}

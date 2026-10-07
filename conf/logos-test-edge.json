@@ -1,0 +1,10 @@
+{
+  "preset": "logos.test",
+  "mode": "Edge",
+  "messagingOverrides": {
+    "logLevel": "INFO",
+    "tcp-port": 60200,
+    "discv5-udp-port": 9200,
+    "nat": "none"
+  }
+}
