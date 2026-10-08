@@ -53,6 +53,11 @@ type
     contentTopic*: string
     health*: string
 
+  SelfInfo* = object
+    peerId*: string
+    addrs*: seq[string] ## announced multiaddrs
+    protocols*: seq[string] ## mounted protocol codecs
+
   HealthSnapshot* = object
     connectionStatus*: string
     nodeHealth*: string
@@ -72,7 +77,9 @@ EventBroker:
     received*: int
     seen*: int ## relay-level traffic (MessageSeenEvent), shown as "relayed"
     errors*: int
-    peers*: int
+    network*: string ## preset name when one is in use, else "cluster <id>"
+    peerStore*: int ## peers known to the peer store
+    peers*: int ## connected peers
     mesh*: seq[MeshEntry]
     health*: string
     connStatus*: string
@@ -108,6 +115,9 @@ RequestBroker:
 
 RequestBroker(sync):
   proc TuiSetLogLevel*(level: string): Result[void, string]
+
+RequestBroker(sync):
+  proc TuiSelfInfo*(): Result[SelfInfo, string]
 
 RequestBroker:
   proc TuiHealthSnapshot*(): Future[Result[HealthSnapshot, string]] {.async.}

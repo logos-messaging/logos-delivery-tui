@@ -98,8 +98,8 @@ delivery-module's `createNode`. That is either the layered form
 │ Messaging    │   active view
 │ …            │
 └──────────────┘
- sent 3 · prop 3 · recv 5 · relayed 40 │ peers 8 │ mesh 0:6        [Log: INFO ▾]
- F2 terminal  F3 logs  F9 menu  F10 quit │ 16Uiu2…x9Qa │ ● READY / Connected
+ logos.test │ peers 35 (19 conn) │ sent 3 · prop 3 · recv 5 · relayed 40      [Log: INFO ▾]
+ [16Uiu2…x9Qa ▾]  ● Connected / READY          F2 terminal  F3 logs  F9 menu  F10 quit
 ```
 
 | Key | Action |
@@ -140,7 +140,18 @@ Views:
 - **Channels**, **Kernel messaging** and **Peers** are placeholders, to be
   specified.
 
-The footer counters are:
+The footer (control bar) is a light-gray strip:
+
+- **Line 1, left:** the preset in use (or `cluster <id>`), then the peer store
+  size with the number of connected peers, then the message counters.
+- **Line 1, right:** the log-level selector.
+- **Line 2, left:** this node's short peer id as a button. Its menu lists the
+  full peer id, the announced multiaddrs and the mounted protocols. Next to it
+  is the health block, coloured by connection status: green Connected, yellow
+  PartiallyConnected, red Disconnected, black when the node is not running.
+- **Line 2, right:** the hotkeys, with the keys in red.
+
+The message counters are:
 
 | Counter | Event |
 |---|---|

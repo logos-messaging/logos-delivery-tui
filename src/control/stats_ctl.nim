@@ -10,6 +10,9 @@ import logos_delivery/waku/node/waku_node
 import logos_delivery/waku/node/health_monitor/node_health_monitor
 import logos_delivery/waku/waku_relay/protocol as relay_protocol
 import logos_delivery/waku/api/[peer_manager, relay as relay_api]
+import logos_delivery/api/conf/logos_delivery_conf_json
+import tools/confutils/cli_args
+import libp2p/[peerinfo, multiaddress]
 import logos_delivery/waku/api/events/health_events
 import ../app/node_host
 import ./[tui_brokers, log_ctl]
@@ -42,6 +45,7 @@ proc poll(c: StatsCtl) {.async: (raises: []).} =
   try:
     let peers = (await ld.waku.connectedPeers()).valueOr(@[])
     c.stats.peers = peers.len
+    c.stats.peerStore = (await ld.waku.peerIdsFromPeerstore()).valueOr(@[]).len
     var mesh: seq[MeshEntry]
     if not ld.waku.node.wakuRelay.isNil:
       for shard in ld.waku.node.wakuRelay.subscribedTopics():
@@ -69,10 +73,29 @@ proc tick(c: StatsCtl) {.async: (raises: []).} =
     except CancelledError:
       return
 
+proc networkName(ld: LogosDelivery): string =
+  ## The preset from the config the node was built from, else the cluster id.
+  let conf = parseLogosDeliveryConf(host().confJson)
+  if conf.isOk:
+    let preset = WakuNodeConf(conf.get().kernelConf).preset
+    if preset.len > 0:
+      return preset
+  "cluster " & $ld.waku.conf.clusterId
+
+proc selfInfo(c: StatsCtl): Result[SelfInfo, string] =
+  if c.ld.isNil or c.ld.waku.node.isNil:
+    return err("node is not running")
+  let pi = c.ld.waku.node.peerInfo
+  var info = SelfInfo(peerId: host().peerIdStr, protocols: pi.protocols)
+  for a in pi.addrs:
+    info.addrs.add $a
+  ok(info)
+
 proc attach(c: StatsCtl, ld: LogosDelivery) =
   c.ld = ld
   c.ctx = ld.waku.brokerCtx
   c.stats.peerId = host().peerIdStr
+  c.stats.network = networkName(ld)
   c.sentL = MessageSentEvent.listen(
     c.ctx,
     proc(e: MessageSentEvent) {.async: (raises: []).} =
@@ -115,6 +138,7 @@ proc detach(c: StatsCtl) {.async: (raises: []).} =
   await EventConnectionStatusChange.dropListener(c.ctx, c.connL)
   c.ld = nil
   c.stats.peers = 0
+  c.stats.peerStore = 0
   c.stats.mesh = @[]
   c.stats.health = ""
   c.stats.connStatus = ""
@@ -139,6 +163,11 @@ proc init*() =
     proc() {.async: (raises: []).} =
       {.cast(gcsafe).}:
         await c.detach()
+  )
+  discard TuiSelfInfo.setProvider(
+    tuiCtx,
+    proc(): Result[SelfInfo, string] =
+      c.selfInfo(),
   )
   c.ticker = c.tick()
 
