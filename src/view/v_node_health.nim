@@ -1,6 +1,8 @@
 ## Admin / node health: connectivity summary, protocol health, connected
-## peers per protocol (disconnect / drop all / dial), subscribed topics with
-## health. Refreshes every 3 s while the tab is shown.
+## peers as two trees in tabs (by protocol / by peer, short peer ids,
+## horizontally scrollable), disconnect / drop all / dial, subscribed topics
+## with health. Refreshes every 3 s while the tab is shown; the trees keep
+## their expansion and selection across refreshes (TreeView.setRoots).
 ## Controller: control/health_ctl.nim.
 
 {.push raises: [].}
@@ -9,7 +11,7 @@ import std/strutils
 import chronos, results
 import illview
 import ../control/tui_brokers
-import ./common
+import ./[common, peer_trees]
 
 type NodeHealthView* = ref object
   app: App
@@ -17,7 +19,9 @@ type NodeHealthView* = ref object
   summary: Label
   status: Label
   protocols: illview.Table
-  peers: illview.Table
+  peerTabs: TabView
+  byProto: TreeView ## protocol > peer > address
+  byPeer: TreeView  ## peer > protocols | addresses
   topics: illview.Table
   refreshing: bool
 
@@ -31,14 +35,11 @@ proc refresh*(v: NodeHealthView) {.async: (raises: []).} =
   if r.isErr:
     v.summary.setText("— " & r.error)
     v.protocols.setRows(@[])
-    v.peers.setRows(@[])
+    v.byProto.setRoots(@[])
+    v.byPeer.setRoots(@[])
     v.topics.setRows(@[])
     return
   let s = r.get()
-  var protos: seq[string]
-  for p in s.peers:
-    if p.protocol notin protos:
-      protos.add p.protocol
   var uniq: seq[string]
   for p in s.peers:
     if p.peerId notin uniq:
@@ -51,25 +52,22 @@ proc refresh*(v: NodeHealthView) {.async: (raises: []).} =
   for p in s.protocols:
     rows.add @[p.protocol, p.health, p.desc]
   v.protocols.setRows(rows)
-  rows = @[]
-  for p in s.peers:
-    rows.add @[p.protocol, p.peerId, p.addresses]
-  v.peers.setRows(rows)
+  v.byProto.setRoots(byProtocol(s.peers))
+  v.byPeer.setRoots(byPeer(s.peers))
   rows = @[]
   for t in s.topics:
     rows.add @[t.shard, t.contentTopic, t.health]
   v.topics.setRows(rows)
 
 proc selectedPeer(v: NodeHealthView): string =
-  if v.peers.rows.len == 0:
-    return ""
-  let i = clamp(v.peers.selected, 0, v.peers.rows.high)
-  v.peers.rows[i][1]
+  ## From whichever peer tree is shown: the peer row, or any row under it.
+  if v.peerTabs.selected == 0: v.byProto.selectedPeerId(peerDepth = 1)
+  else: v.byPeer.selectedPeerId(peerDepth = 0)
 
 proc disconnectSelected(v: NodeHealthView) {.async: (raises: []).} =
   let peer = v.selectedPeer()
   if peer.len == 0:
-    v.status.setText("no peer selected")
+    v.status.setText("select a peer (or a row under it) in the peer tree")
     return
   let r = await TuiDisconnectPeer.request(tuiCtx, peer)
   v.status.setText(if r.isOk: "disconnected " & short(peer) else: "disconnect failed: " & r.error)
@@ -136,12 +134,18 @@ proc newNodeHealthView*(app: App): NodeHealthView =
     tableColumn("health", prefHint(14)),
     tableColumn("description", prefHint(30, stretch = 1)),
   ])
-  v.peers = newTable(@[
-    tableColumn("protocol", prefHint(14)),
-    tableColumn("peer id", fixedHint(53)),
-    tableColumn("addresses", prefHint(30, stretch = 1)),
-  ])
-  v.peers.showScrollbar = true
+  proc treePage(title: string, tree: TreeView): Window =
+    let w = newWindow(title, rect(0, 0, 0, 0))
+    w.closable = false
+    tree.dock = dkFill
+    w.add tree
+    w
+
+  v.byProto = newTreeView()
+  v.byPeer = newTreeView()
+  v.peerTabs = newTabView()
+  v.peerTabs.addPage(treePage("By protocol", v.byProto))
+  v.peerTabs.addPage(treePage("By peer", v.byPeer))
   v.topics = newTable(@[
     tableColumn("shard (mesh)", prefHint(26)),
     tableColumn("content topic", prefHint(30, stretch = 1)),
@@ -153,7 +157,10 @@ proc newNodeHealthView*(app: App): NodeHealthView =
   body.add row(v.summary)
   body.add row(refreshBtn, discBtn, dropBtn, dialBtn, v.status)
   body.add section("Protocol health", v.protocols, height = 8)
-  body.add section("Connected peers per protocol", v.peers)
+  body.add section(
+    "Connected peers   (Shift+←/→ or Shift+wheel: scroll sideways, Ctrl+PgUp/PgDn: tab)",
+    v.peerTabs,
+  )
   body.add section("Subscribed topics", v.topics, height = 6)
   v.page.add body
   v

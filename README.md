@@ -121,9 +121,15 @@ Views:
   sent message through sent / propagated / error, and lists received messages
   as live or history.
 - **Admin → Node health** shows connection status, node health, protocol
-  health, connected peers per protocol and subscribed topics with their mesh
-  and health. From here you can disconnect a peer, drop all peers or dial a
-  multiaddr.
+  health and subscribed topics with their mesh and health. Connected peers are
+  shown as two trees in tabs (Ctrl+PgUp / Ctrl+PgDn switch between them):
+  - **By protocol:** protocol → peer → addresses.
+  - **By peer:** peer → protocols / addresses.
+
+  Peer ids are shortened, and long rows scroll sideways with Shift+←/→,
+  Shift+Home/End or Shift+wheel. Expanded branches and the selection survive
+  the 3 s refresh. From here you can disconnect the selected peer (select the
+  peer row or any row under it), drop all peers or dial a multiaddr.
 - **Admin → Current configuration** shows the resolved config as a k/v table
   (kernel / messaging / channels) next to the JSON editor. It can start or stop
   the node, apply the edited JSON and restart, save as, and load. Saved
