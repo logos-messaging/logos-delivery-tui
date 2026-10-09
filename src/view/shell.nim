@@ -10,7 +10,7 @@ import chronos, chronicles, results
 import illview
 import ../app/cli
 import ../control/tui_brokers
-import ./[footer, sidebar, v_messaging, v_node_health, v_config, v_scenario,
+import ./[footer, sidebar, theme, v_messaging, v_node_health, v_config, v_scenario,
   v_placeholder]
 
 logScope:
@@ -157,7 +157,7 @@ proc build(sh: Shell) =
         discard
 
 proc runTui*(c: CliConf): Future[int] {.async: (raises: []).} =
-  let app = newApp(captureOutput = true)
+  let app = newApp(theme = ldtuiTheme(), captureOutput = true)
   let sh = Shell(app: app)
   sh.build()
   sh.health.start()
