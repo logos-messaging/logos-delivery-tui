@@ -37,6 +37,25 @@ type
   KV* = object
     key*: string
     value*: string
+    source*: string ## runtime | config | preset | default | "" (unknown)
+    cfgKey*: string ## config JSON key (CLI name) when copyable, else ""
+    cfgValue*: string ## that key's value as JSON text
+
+  PresetField* = object
+    cfgKey*: string ## CLI name; "" = informational only
+    label*: string
+    value*: string ## display value (scalars)
+    cfgValue*: string ## JSON text for cfgKey
+    items*: seq[string] ## list fields: one entry per item
+    isList*: bool
+
+  PresetInfo* = object
+    name*: string
+    fields*: seq[PresetField]
+
+  ConfigPatch* = object
+    json*: string ## the patched config JSON, pretty-printed
+    message*: string
 
   PeerRow* = object
     protocol*: string
@@ -132,14 +151,31 @@ RequestBroker:
   proc TuiDialPeer*(multiaddr: string): Future[Result[void, string]] {.async.}
 
 RequestBroker(sync):
-  proc TuiCurrentConfig*(): Result[seq[KV], string]
+  proc TuiCurrentConfig*(confJson: string): Result[seq[KV], string]
+    ## The running node's effective config; when stopped, the one `confJson`
+    ## (the editor's text) would give.
+
+RequestBroker(sync):
+  proc TuiPresets*(): Result[seq[PresetInfo], string]
+
+RequestBroker(sync):
+  proc TuiActivePreset*(confJson: string): Result[string, string]
+    ## The preset named by `confJson` ("" if none).
+
+RequestBroker(sync):
+  proc TuiPatchConfig*(
+    confJson: string, cfgKey: string, valueJson: string, append: bool
+  ): Result[ConfigPatch, string]
+    ## Puts `cfgKey` = `valueJson` where the config's shape keeps it, checked
+    ## with the node's own config parser.
 
 RequestBroker(sync):
   proc TuiConfigJson*(): Result[string, string]
     ## The node config JSON the host was given (or last applied).
 
 RequestBroker:
-  proc TuiNodeStart*(): Future[Result[void, string]] {.async.}
+  proc TuiNodeStart*(confJson: string): Future[Result[void, string]] {.async.}
+    ## Empty `confJson` starts with the current config.
 
 RequestBroker:
   proc TuiNodeStop*(): Future[Result[void, string]] {.async.}

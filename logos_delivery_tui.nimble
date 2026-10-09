@@ -82,5 +82,5 @@ task tui, "Build and run the TUI; extra args are passed through (default: --node
   exec "build/logos_delivery_tui " & args.quoteShellCommand
 
 task test, "Run unit tests":
-  for t in ["test_scenario_parse", "test_config_flatten", "test_peer_trees"]:
+  for t in ["test_scenario_parse", "test_config_flatten", "test_peer_trees", "test_conf_resolve"]:
     exec "nim c -r --hints:off -o:build/tests/" & t & " tests/" & t & ".nim"

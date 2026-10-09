@@ -170,7 +170,7 @@ proc runTui*(c: CliConf): Future[int] {.async: (raises: []).} =
   if c.nodeConf.len > 0 and c.autostart:
     sh.openView(VMessaging)
     asyncSpawn (proc() {.async: (raises: []).} =
-      let r = await TuiNodeStart.request(tuiCtx)
+      let r = await TuiNodeStart.request(tuiCtx, "")
       if r.isErr:
         sh.openView(VConfig))()
   else:

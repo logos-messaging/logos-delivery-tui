@@ -1,40 +1,60 @@
-## Current configuration as a flat k/v table. The rows come from the
-## LogosDeliveryConf the host's JSON resolves to (kernel / messaging /
-## channels layers), so presets and defaults are visible too, not just the
-## keys present in the file.
+## Configuration view controller: the effective node configuration (presets
+## merged, value sources), the network presets, and patching values into the
+## node config JSON. See conf_resolve.nim.
 
 {.push raises: [].}
 
-import std/json
 import results
 import logos_delivery
-import logos_delivery/api/conf/logos_delivery_conf_json
+import logos_delivery/waku/factory/waku_conf
 import ../app/node_host
-import ./[tui_brokers, conf_flatten]
+import chronicles
+import ./[tui_brokers, conf_resolve, log_ctl]
 
-proc currentConfig*(confJson: string): Result[seq[KV], string] =
-  let conf = parseLogosDeliveryConf(confJson).valueOr:
-    return err("invalid node configuration: " & error)
-  var rows: seq[FlatKV]
-  flattenInto(rows, "kernel", conf.kernelConf)
-  flattenInto(rows, "messaging", conf.messagingConf)
-  flattenInto(rows, "channels", conf.channelsConf)
-  var res: seq[KV]
-  for (k, v) in rows:
-    res.add KV(key: k, value: v)
-  ok(res)
-
-proc prettyJson*(confJson: string): string =
+template quietBuilds(body: untyped): untyped =
+  ## The config builder logs every build ("No node key provided, generated a
+  ## new one", the sharding summary, ignored-flag warnings); these builds are
+  ## the table's, not the node's. They are synchronous on this thread, so the
+  ## level is lowered only for their duration.
+  let saved = parseLevel(currentLogLevel()).valueOr(LogLevel.INFO)
+  setLevel(LogLevel.ERROR)
   try:
-    parseJson(confJson).pretty()
-  except CatchableError:
-    confJson
+    body
+  finally:
+    setLevel(saved)
 
 proc init*() =
   discard TuiCurrentConfig.setProvider(
     tuiCtx,
-    proc(): Result[seq[KV], string] =
-      currentConfig(host().confJson),
+    proc(confJson: string): Result[seq[KV], string] =
+      # Running: what the node uses, sourced against the config it was started
+      # with. Stopped: what the editor's config would give.
+      let h = host()
+      quietBuilds:
+        if h.isRunning:
+          effectiveRows(h.confJson, h.ld.waku.conf)
+        else:
+          effectiveRows(confJson),
+  )
+  discard TuiPresets.setProvider(
+    tuiCtx,
+    proc(): Result[seq[PresetInfo], string] =
+      ok(presets()),
+  )
+  discard TuiActivePreset.setProvider(
+    tuiCtx,
+    proc(confJson: string): Result[string, string] =
+      ok(activePreset(confJson)),
+  )
+  discard TuiPatchConfig.setProvider(
+    tuiCtx,
+    proc(
+        confJson: string, cfgKey: string, valueJson: string, append: bool
+    ): Result[ConfigPatch, string] =
+      let patched = quietBuilds:
+        patchConfig(confJson, cfgKey, valueJson, append)
+      let (json, message) = ?patched
+      ok(ConfigPatch(json: json, message: message)),
   )
 
 {.pop.}

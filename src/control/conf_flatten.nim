@@ -1,6 +1,6 @@
 ## Flattens a (nested) config object into `key = stringified value` rows.
-## Recurses into object types whose name contains "Conf" (the config
-## structs); everything else is rendered with `$`.
+## Recurses into object types whose name ends in "Conf" (the config structs;
+## library `…Config` objects are rendered whole); everything else with `$`.
 
 {.push raises: [].}
 
@@ -28,10 +28,14 @@ proc flattenInto*[T](res: var seq[FlatKV], key: string, v: T, depth = 0) =
     if v.isNil:
       res.add((key, "nil"))
     elif depth < MaxDepth:
-      flattenInto(res, key, v[], depth)
+      when ($T).endsWith("Conf"): # `ref object` configs: v[] is "T:ObjectType"
+        for name, field in fieldPairs(v[]):
+          flattenInto(res, (if key.len > 0: key & "." & name else: name), field, depth + 1)
+      else:
+        flattenInto(res, key, v[], depth)
     else:
       res.add((key, "…"))
-  elif T is object and "Conf" in $T:
+  elif T is object and ($T).endsWith("Conf"):
     if depth >= MaxDepth:
       res.add((key, "…"))
     else:
@@ -39,6 +43,17 @@ proc flattenInto*[T](res: var seq[FlatKV], key: string, v: T, depth = 0) =
         flattenInto(res, (if key.len > 0: key & "." & name else: name), field, depth + 1)
   elif T is string:
     res.add((key, v))
+  elif T is seq:
+    # item by item: system's `$`(seq) can't see the items' `$` overloads
+    var items: seq[string]
+    for item in v:
+      when typeof(item) is string:
+        items.add item.escape
+      else:
+        var one: seq[FlatKV]
+        flattenInto(one, "", item, MaxDepth)
+        items.add (if one.len == 1: one[0].value else: "…")
+    res.add((key, "@[" & items.join(", ") & "]"))
   elif compiles($v):
     try:
       res.add((key, $v))

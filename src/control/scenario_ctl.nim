@@ -130,7 +130,7 @@ proc runStep(c: ScenarioCtl, st: Step): Future[Result[void, string]] {.async: (r
   of Action.stopNode:
     return await TuiNodeStop.request(tuiCtx)
   of Action.startNode:
-    return await TuiNodeStart.request(tuiCtx)
+    return await TuiNodeStart.request(tuiCtx, "")
   of Action.restartNode:
     var confJson = ""
     let nc = p.str("nodeConf")

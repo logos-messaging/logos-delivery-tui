@@ -130,10 +130,36 @@ Views:
   Shift+Home/End or Shift+wheel. Expanded branches and the selection survive
   the 3 s refresh. From here you can disconnect the selected peer (select the
   peer row or any row under it), drop all peers or dial a multiaddr.
-- **Admin → Current configuration** shows the resolved config as a k/v table
-  (kernel / messaging / channels) next to the JSON editor. It can start or stop
-  the node, apply the edited JSON and restart, save as, and load. Saved
-  configs go to `~/.config/logos-delivery-tui/nodes/`.
+- **Admin → Current configuration** has two panes side by side, split by a
+  draggable divider, with the JSON editor below.
+  - **Left: the effective configuration.** The config logos-delivery actually
+    uses, with presets merged. It comes from the running node, or is built
+    the same way `LogosDelivery.new` builds it when the node is stopped. Each
+    row has a **source**: `config` (your JSON), `preset`, `default`, or
+    `runtime` (changed by the running node, such as a bound port). Secrets
+    are shown as `<hidden>`.
+  - **Right: the presets.** A tree of `logos.test`, `logos.dev`, `twn` and
+    `status.prod` with all their values. The active preset is marked `●`.
+
+  **Double-click or Enter** puts a value into the JSON editor, at the place
+  the config's shape keeps it:
+
+  | JSON shape | Where values go |
+  |---|---|
+  | layered (`preset` / `mode` / `messagingOverrides`) | `messagingOverrides` |
+  | kernel entry layer | `kernelConf` |
+  | legacy flat | top level |
+
+  - A table row writes its effective value.
+  - A preset name sets `"preset"`.
+  - A preset field sets that value, and a list sets the whole list.
+  - A list item is appended to the list.
+
+  Every change is checked with the node's own config parser. A key the shape
+  can't hold (for example `mix` in a layered config) is refused with the
+  parser's message, and the JSON is left unchanged. Apply & restart, Save
+  as / Load and node start / stop work as before. Saved configs go to
+  `~/.config/logos-delivery-tui/nodes/`.
 - **Testing → Send scenario** lets you edit, load, save and run a scenario,
   and shows its progress. Scenarios are saved to
   `~/.config/logos-delivery-tui/scenarios/`.

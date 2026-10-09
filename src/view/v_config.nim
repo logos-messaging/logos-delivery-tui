@@ -1,6 +1,10 @@
-## Admin / current configuration: the resolved config as a k/v table (all
-## values stringified), the node config JSON in an editor, and node control:
-## start / stop / apply-and-restart, save as / load (XDG dir or any path).
+## Admin / current configuration: the effective node config (presets merged;
+## the running node's when started, else what the editor's JSON gives) as a
+## key / value / source table, a
+## browser of the network presets beside it, the node config JSON in an
+## editor, and node control: start / stop / apply-and-restart, save as / load.
+## Double-click (or Enter) on a table row or a preset entry puts that value
+## into the JSON, where the config's shape keeps it.
 ## Controller: control/config_ctl.nim (+ node host providers).
 
 {.push raises: [].}
@@ -10,7 +14,7 @@ import chronos, results
 import illview
 import ../app/settings
 import ../control/tui_brokers
-import ./common
+import ./[common, preset_tree]
 
 type ConfigView* = ref object
   app: App
@@ -18,7 +22,11 @@ type ConfigView* = ref object
   source: Label
   status: Label
   table: illview.Table
+  rows: seq[KV] ## what the table shows, row for row
+  presets: PresetTree
+  presetData: seq[PresetInfo]
   editor: Editor
+  editGen: int ## debounces the table rebuild while typing
 
 proc pretty(s: string): string =
   try:
@@ -26,15 +34,44 @@ proc pretty(s: string): string =
   except CatchableError:
     s
 
+proc refreshPresets(v: ConfigView) =
+  ## Marks the preset the editor's JSON names.
+  let active = TuiActivePreset.request(tuiCtx, v.editor.text).valueOr("")
+  v.presets.setPresets(v.presetData, active)
+
 proc refresh*(v: ConfigView) =
-  let r = TuiCurrentConfig.request(tuiCtx)
+  let r = TuiCurrentConfig.request(tuiCtx, v.editor.text)
   if r.isErr:
-    v.table.setRows(@[@["(error)", r.error]])
+    # keep the last good rows; the editor's JSON may be half typed
+    v.status.setText("config: " & r.error)
+    if v.rows.len == 0:
+      v.table.setRows(@[@["(error)", r.error, ""]])
+  else:
+    v.rows = r.get()
+    var rows: seq[seq[string]]
+    for kv in v.rows:
+      rows.add @[kv.key, kv.value, kv.source]
+    v.table.setRows(rows)
+  v.refreshPresets()
+
+proc putIntoConfig(v: ConfigView, cfgKey, valueJson: string, append: bool, what: string) =
+  let r = TuiPatchConfig.request(tuiCtx, v.editor.text, cfgKey, valueJson, append)
+  if r.isErr:
+    v.status.setText(what & ": " & r.error)
     return
-  var rows: seq[seq[string]]
-  for kv in r.get():
-    rows.add @[kv.key, kv.value]
-  v.table.setRows(rows)
+  v.editor.setText(r.get().json)
+  v.status.setText(what & ": " & r.get().message & " — Start / Apply & restart to use it")
+  v.refresh()
+
+proc copySelectedRow(v: ConfigView) =
+  let i = v.table.selected
+  if i < 0 or i >= v.rows.len:
+    return
+  let kv = v.rows[i]
+  if kv.cfgKey.len == 0:
+    v.status.setText(kv.key & " is not set from the node config (derived, runtime or hidden)")
+    return
+  v.putIntoConfig(kv.cfgKey, kv.cfgValue, false, kv.key)
 
 proc loadFromHost*(v: ConfigView) =
   let j = TuiConfigJson.request(tuiCtx).valueOr("")
@@ -62,9 +99,15 @@ proc applyRestart(v: ConfigView) {.async: (raises: []).} =
   v.refresh()
 
 proc startStop(v: ConfigView, start: bool) {.async: (raises: []).} =
+  # Start uses the editor's config, as Apply & restart does.
+  var text = ""
+  if start:
+    text = v.validJson().valueOr:
+      v.status.setText(error)
+      return
   v.status.setText(if start: "starting node…" else: "stopping node…")
   let r =
-    if start: await TuiNodeStart.request(tuiCtx)
+    if start: await TuiNodeStart.request(tuiCtx, text)
     else: await TuiNodeStop.request(tuiCtx)
   v.status.setText(
     if r.isOk: (if start: "node started" else: "node stopped")
@@ -103,7 +146,8 @@ proc load(v: ConfigView) {.async: (raises: []).} =
     return
   v.editor.setText(pretty(text))
   v.setSource(path)
-  v.status.setText("loaded " & path & " — Apply to restart the node with it")
+  v.status.setText("loaded " & path & " — Start / Apply & restart to use it")
+  v.refresh()
 
 proc newConfigView*(app: App): ConfigView =
   let v = ConfigView(app: app)
@@ -131,19 +175,48 @@ proc newConfigView*(app: App): ConfigView =
     {.cast(gcsafe).}: v.loadFromHost())
 
   v.table = newTable(@[
-    tableColumn("key", prefHint(40)),
-    tableColumn("value", prefHint(40, stretch = 1)),
+    tableColumn("key", prefHint(36)),
+    tableColumn("value", prefHint(30, stretch = 1)),
+    tableColumn("source", fixedHint(8)),
   ])
   v.table.showScrollbar = true
+  # Enter, or a click on the selected row (so: a double click)
+  v.table.onActivate = proc(t: illview.Table) {.gcsafe, raises: [].} =
+    {.cast(gcsafe).}:
+      v.copySelectedRow()
   v.editor = newEditor("")
+  v.editor.onChange = proc(e: Editor) {.gcsafe, raises: [].} =
+    {.cast(gcsafe).}:
+      inc v.editGen
+      let gen = v.editGen
+      asyncSpawn (proc() {.async: (raises: []).} =
+        try:
+          await sleepAsync(400.milliseconds)
+        except CancelledError:
+          return
+        if gen == v.editGen:
+          v.refresh())()
+
+  v.presets = newPresetTree()
+  v.presets.onPick = proc(p: PresetPick) {.gcsafe, raises: [].} =
+    {.cast(gcsafe).}:
+      v.putIntoConfig(p.cfgKey, p.valueJson, p.append, p.what)
+  v.presetData = TuiPresets.request(tuiCtx).valueOr(@[])
+  let split = newSplitter(axH, v.table, v.presets)
 
   let body = newVBox()
   body.dock = dkFill
   body.add row(v.source)
   body.add row(startBtn, stopBtn, applyBtn, saveBtn, loadBtn, resetBtn)
   body.add row(v.status)
-  body.add section("Resolved configuration (kernel / messaging / channels)", v.table)
-  body.add section("Node config JSON (edit, then Apply & restart or Save)", v.editor, height = 12)
+  body.add newSplitter(
+    axV,
+    section(
+      "Effective configuration  │  Presets      double-click / Enter: put into the JSON below",
+      split,
+    ),
+    section("Node config JSON (edit, then Apply & restart or Save)", v.editor),
+  )
   v.page.add body
   v.loadFromHost()
 

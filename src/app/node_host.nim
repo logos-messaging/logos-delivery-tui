@@ -72,9 +72,14 @@ proc fail(h: NodeHost, msg: string): Result[void, string] =
   h.setState(NodeState.Failed, msg)
   err(msg)
 
-proc start*(h: NodeHost): Future[Result[void, string]] {.async: (raises: []).} =
+proc start*(
+    h: NodeHost, confJson = ""
+): Future[Result[void, string]] {.async: (raises: []).} =
+  ## A non-empty `confJson` becomes the node's config first.
   if h.state in {NodeState.Starting, NodeState.Running, NodeState.Stopping}:
     return err("node is " & $h.state)
+  if confJson.strip.len > 0:
+    h.confJson = confJson
   if h.confJson.strip.len == 0:
     return h.fail("no node configuration given")
   h.setState(NodeState.Starting)
@@ -134,15 +139,13 @@ proc restart*(
     h: NodeHost, confJson = ""
 ): Future[Result[void, string]] {.async: (raises: []).} =
   ?(await h.stop())
-  if confJson.strip.len > 0:
-    h.confJson = confJson
-  await h.start()
+  await h.start(confJson)
 
 proc installProviders*(h: NodeHost) =
   discard TuiNodeStart.setProvider(
     tuiCtx,
-    proc(): Future[Result[void, string]] {.async.} =
-      (await h.start()),
+    proc(confJson: string): Future[Result[void, string]] {.async.} =
+      (await h.start(confJson)),
   )
   discard TuiNodeStop.setProvider(
     tuiCtx,
