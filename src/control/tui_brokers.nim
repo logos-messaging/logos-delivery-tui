@@ -145,9 +145,11 @@ EventBroker:
 EventBroker:
   type TuiChatLine* = object
     key*: string ## requestId (outgoing) or message hash (incoming)
-    dir*: ChatDir
+    dir*: ChatDir ## Outgoing = mine (our echoes are merged into it), else the other party's
     contentTopic*: string
-    text*: string
+    text*: string ## the payload as text (may hold newlines), or 0x-hex when binary
+    payload*: seq[byte] ## raw payload (empty on outgoing status updates)
+    msgHash*: string ## message hash; "" while an outgoing one is not yet known
     status*: ChatStatus
     ts*: string
 

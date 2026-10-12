@@ -38,21 +38,22 @@ proc nowTs(): string =
   except CatchableError:
     ""
 
-proc printable*(payload: seq[byte]): string =
-  ## Payload as text when it is valid UTF-8 without control characters (C0
-  ## except tab, DEL, C1: a terminal may act on them, e.g. U+009B as CSI),
-  ## otherwise as hex.
+proc isText*(payload: seq[byte]): bool =
+  ## Valid UTF-8 without control characters other than tab, newline and
+  ## carriage return (C0, DEL and C1 are refused: a terminal may act on them,
+  ## e.g. U+009B as CSI).
   let s = string.fromBytes(payload)
-  if validateUtf8(s) == -1:
-    var ok = true
-    for r in s.runes:
-      let c = r.int32
-      if (c < 0x20 and c != 0x09) or (c >= 0x7F and c <= 0x9F):
-        ok = false
-        break
-    if ok:
-      return s
-  "0x" & payload.toHex()
+  if validateUtf8(s) != -1:
+    return false
+  for r in s.runes:
+    let c = r.int32
+    if (c < 0x20 and c notin [0x09'i32, 0x0A, 0x0D]) or (c >= 0x7F and c <= 0x9F):
+      return false
+  true
+
+proc printable*(payload: seq[byte]): string =
+  ## Payload as text (newlines kept) when `isText`, otherwise as 0x-hex.
+  if payload.isText: string.fromBytes(payload) else: "0x" & payload.toHex()
 
 proc status(c: MessagingCtl, requestId, msgHash: string, st: ChatStatus) =
   c.echoes.hashKnown(requestId, msgHash)
@@ -60,7 +61,9 @@ proc status(c: MessagingCtl, requestId, msgHash: string, st: ChatStatus) =
     return
   TuiChatLine.emit(
     tuiCtx,
-    TuiChatLine(key: requestId, dir: ChatDir.Outgoing, status: st, ts: nowTs()),
+    TuiChatLine(
+      key: requestId, dir: ChatDir.Outgoing, status: st, msgHash: msgHash, ts: nowTs()
+    ),
   )
   # Propagated is not final: the store confirmation (Sent) follows it when
   # reliability is on. Without it the id stays in the set until detach.
@@ -89,6 +92,7 @@ proc send(
       dir: ChatDir.Outgoing,
       contentTopic: contentTopic,
       text: printable(payload),
+      payload: payload,
       status: ChatStatus.Pending,
       ts: nowTs(),
     ),
@@ -131,6 +135,8 @@ proc attach(c: MessagingCtl, ld: LogosDelivery) =
           dir: ChatDir.Incoming,
           contentTopic: $e.message.contentTopic,
           text: printable(e.message.payload),
+          payload: e.message.payload,
+          msgHash: e.messageHash,
           status:
             if e.source == MessageSource.History: ChatStatus.History
             else: ChatStatus.Live,

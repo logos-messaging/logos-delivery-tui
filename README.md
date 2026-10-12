@@ -118,8 +118,16 @@ Views:
 - **Messaging** has a content topic field with Subscribe and Unsubscribe
   buttons, and a payload editor. The payload is sent as text, or decoded first
   if the base64 box is ticked. Below that is a chat table that tracks each
-  sent message through sent / propagated / error, and lists received messages
-  as live or history.
+  sent message through propagated ✓ / sent ✓✓ (store-confirmed) / error, and
+  lists received messages as live or history. Your own message coming back
+  on the subscription is not listed again. Text with newlines is shown with
+  ⏎; payloads that are not text show as hex.
+
+  Under the table (drag the divider to resize) is the selected message in
+  detail: from (`mine` or `other party`), direction and time, content topic,
+  message hash, request id (yours only), status, and side by side the
+  decoded text (all lines) and the payload as base64. A new message selects
+  itself; click a row to see another.
 - **Admin → Node health** shows connection status, node health, protocol
   health and subscribed topics with their mesh and health. Connected peers are
   shown as two trees in tabs (Ctrl+PgUp / Ctrl+PgDn switch between them):

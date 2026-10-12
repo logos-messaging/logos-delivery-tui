@@ -1,6 +1,7 @@
 import std/strutils
 import unittest2, stew/byteutils
 import ../src/control/[echo_filter, messaging_ctl]
+import ../src/view/v_messaging
 
 const Topic = "/logos-delivery-tui/1/chat/proto"
 
@@ -44,3 +45,16 @@ suite "payload text":
       printable(@[0x00'u8, 0xff]) == "0x00ff"
       printable("a\u009b31mb".toBytes).startsWith("0x") # C1 CSI: shown as hex
       printable("tab\tok".toBytes) == "tab\tok"
+
+  test "newlines and carriage returns are text, not binary":
+    let p = "hello from logos-delivery-tui re-1 2\n".toBytes
+    check:
+      p.isText
+      printable(p) == "hello from logos-delivery-tui re-1 2\n"
+      "two\r\nlines".toBytes.isText
+      not "esc\x1b[31m".toBytes.isText # other C0 controls stay binary
+
+  test "a table row shows newlines as ⏎":
+    check:
+      oneLine("a\nb") == "a⏎b"
+      oneLine("a\r\nb\n") == "a⏎b⏎"
