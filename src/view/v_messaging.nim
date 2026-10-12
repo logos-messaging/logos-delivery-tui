@@ -39,7 +39,7 @@ type
     recs: seq[ChatRec] ## row for row with `chat`
     rowOf: tables.Table[string, int] ## chat key -> row index (outgoing status updates)
     # detail of the selected message
-    dFrom, dTopic, dHash, dRequest, dStatus: ValueField
+    dFrom, dTopic, dHash, dRequest, dStatus: Input ## read-only
     dTextBox: GroupBox
     dText, dBase64: TextView
 
@@ -98,18 +98,18 @@ proc showDetail(v: MessagingView) =
   v.dBase64.clear()
   if i < 0 or i >= v.recs.len:
     for l in [v.dFrom, v.dTopic, v.dHash, v.dRequest, v.dStatus]:
-      l.setText("")
+      l.show("")
     v.dTextBox.borderTitle = "Decoded text"
     return
   let r = v.recs[i]
   let mine = r.dir == ChatDir.Outgoing
-  v.dFrom.setText(
+  v.dFrom.show(
     (if mine: "mine  → sent " else: "other party  ← received ") & r.ts
   )
-  v.dTopic.setText(r.contentTopic)
-  v.dHash.setText(if r.msgHash.len > 0: r.msgHash else: "… (not known yet)")
-  v.dRequest.setText(if mine: r.key else: "–")
-  v.dStatus.setText($r.status)
+  v.dTopic.show(r.contentTopic)
+  v.dHash.show(if r.msgHash.len > 0: r.msgHash else: "… (not known yet)")
+  v.dRequest.show(if mine: r.key else: "–")
+  v.dStatus.show($r.status)
   if r.payload.len > 0 and r.text == "0x" & r.payload.toHex():
     v.dTextBox.borderTitle = "Decoded text (binary, " & $r.payload.len & " bytes)"
     v.dText.addLine("(not text: shown as hex in the list)")
@@ -198,7 +198,7 @@ proc newMessagingView*(): MessagingView =
       v.showDetail()
 
   # detail of the selected message
-  proc field(name: string, value: ValueField): BoxLayout =
+  proc field(name: string, value: Input): BoxLayout =
     row(label(name, 15), value)
   v.dFrom = newValueField()
   v.dTopic = newValueField()

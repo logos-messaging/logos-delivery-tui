@@ -16,7 +16,7 @@ import ./common
 
 const
   LogLevels = ["TRACE", "DEBUG", "INFO", "NOTICE", "WARN", "ERROR"]
-  Hotkeys = [("F2", "terminal"), ("F3", "logs"), ("F9", "menu"), ("F10", "quit")]
+  Hotkeys = [("F2", "terminal"), ("F3", "logs"), ("F5", "copy"), ("F9", "menu"), ("F10", "quit")]
   BarBg = bgWhite # light gray
   BarFg = fgBlack
 

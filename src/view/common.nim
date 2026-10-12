@@ -50,24 +50,16 @@ proc short*(id: string, n = 6): string =
   ## "16Uiu2HAm…x9Qa" style shortening.
   if id.len <= 2 * n + 1: id else: id[0 ..< n] & "…" & id[^n .. ^1]
 
-type ValueField* = ref object of View
-  ## A read-only value shown like an input field (the input surface, white on
-  ## dark blue), one line, clipped by display width. Not focusable.
-  text: string
-
-proc newValueField*(): ValueField =
-  result = ValueField()
-  initView(result)
+proc newValueField*(): Input =
+  ## A read-only value shown as an input field: select and copy only.
+  result = newInput()
+  result.readOnly = true
   result.hint = (prefHint(0, stretch = 1), fixedHint(1))
 
-proc setText*(f: ValueField, s: string) =
+proc show*(f: Input, s: string) =
+  ## Set a value field's text, shown from its start.
   if s != f.text:
-    f.text = s
-    f.invalidate()
-
-method draw*(f: ValueField, dc: DrawContext) {.gcsafe, raises: [].} =
-  let st = f.styleOf(tkInput)
-  dc.fill(rect(0, 0, f.contentW, f.contentH), " ", st)
-  dc.write(1, 0, f.text.clipWidth(max(f.contentW - 2, 0)), st)
+    f.setText(s)
+    f.cursor = 0
 
 {.pop.}

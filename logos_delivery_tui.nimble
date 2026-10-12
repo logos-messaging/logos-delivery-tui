@@ -25,7 +25,7 @@ requires "https://github.com/logos-messaging/logos-delivery#1dd3d3877caf969dc9d8
 # v3.4.0, the same commit logos-delivery pins.
 requires "https://github.com/NagyZoltanPeter/nim-brokers.git#fd97eb355eee5d14594e0b4599964eff00648ec7"
 # master (TreeView scrolling, tkCursor, wide chars, emoji width probe)
-requires "https://github.com/NagyZoltanPeter/nim-illview.git#377fe76b668325ad38ac2a3307fab7c15a388875"
+requires "https://github.com/NagyZoltanPeter/nim-illview.git#394b12d7eb63aa665a34e8f9a2558d7410fd628e"
 # Versions come from logos-delivery's lock.
 requires "chronos", "chronicles", "results", "stew"
 
