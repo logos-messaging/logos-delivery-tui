@@ -65,7 +65,8 @@ method handleEvent*(t: OptionTree, ev: Event): bool {.gcsafe, raises: [].} =
   procCall handleEvent(TreeView(t), ev)
 
 proc clip(s: string, w: int): string =
-  if s.runeLen <= w: s.alignLeft(w) else: s.runeSubStr(0, w - 2) & "… "
+  ## `s` in exactly `w` columns (wide characters count 2), "…" when cut.
+  if s.textWidth <= w: s.padWidth(w) else: (s.clipWidth(w - 2) & "…").padWidth(w)
 
 proc rowLabel(r: NodeOptionRow): string =
   r.opt.cli.clip(OptW) & r.value.clip(ValW) & r.source.clip(SrcW) & r.opt.desc

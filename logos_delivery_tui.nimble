@@ -24,9 +24,9 @@ requires "nim == 2.2.6"
 requires "https://github.com/logos-messaging/logos-delivery#1dd3d3877caf969dc9d821fcb13536d6f133104f"
 # v3.4.0, the same commit logos-delivery pins.
 requires "https://github.com/NagyZoltanPeter/nim-brokers.git#fd97eb355eee5d14594e0b4599964eff00648ec7"
-# feat-cursor-style (tkCursor), on top of feat-treeview-hscroll (TreeView
-# scrolling + setRoots) and v0.1.0
-requires "https://github.com/NagyZoltanPeter/nim-illview.git#33320ab69db6853f13fe59648ff9c33aa0f5f778"
+# feat-wide-chars (wide chars, emoji width probe) on feat-cursor-style (tkCursor),
+# on feat-treeview-hscroll (TreeView scrolling + setRoots) and v0.1.0
+requires "https://github.com/NagyZoltanPeter/nim-illview.git#394d254f0a2d3fb6604982acf34377a72bce13cf"
 # Versions come from logos-delivery's lock.
 requires "chronos", "chronicles", "results", "stew"
 
