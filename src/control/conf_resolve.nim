@@ -235,6 +235,15 @@ proc layerTargets[T](
     if not j.isNil:
       res[layer & "." & field] = (names[names.lookup(field)].cli, j)
 
+proc runningRows*(running: WakuConf): Result[seq[KV], string] =
+  ## The running node's effective kernel config, without sources.
+  var flat: seq[FlatKV]
+  flattenInto(flat, "kernel", running)
+  var rows: seq[KV]
+  for (k, v) in flat:
+    rows.add KV(key: k, value: if k.hidden: "<hidden>" else: v)
+  ok(rows)
+
 proc effectiveRows*(
     confJson: string, running: WakuConf = nil
 ): Result[seq[KV], string] =

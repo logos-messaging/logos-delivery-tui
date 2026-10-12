@@ -130,7 +130,7 @@ proc runStep(c: ScenarioCtl, st: Step): Future[Result[void, string]] {.async: (r
   of Action.stopNode:
     return await TuiNodeStop.request(tuiCtx)
   of Action.startNode:
-    return await TuiNodeStart.request(tuiCtx, "")
+    return await TuiNodeStart.request(tuiCtx, "", false)
   of Action.restartNode:
     var confJson = ""
     let nc = p.str("nodeConf")
@@ -142,7 +142,7 @@ proc runStep(c: ScenarioCtl, st: Step): Future[Result[void, string]] {.async: (r
         confJson = readFile(path)
       except CatchableError as e:
         return err("cannot read " & path & ": " & e.msg)
-    return await TuiNodeRestart.request(tuiCtx, confJson)
+    return await TuiNodeRestart.request(tuiCtx, confJson, false)
   of Action.setLogLevel:
     return TuiSetLogLevel.request(tuiCtx, p.str("level"))
   of Action.expect:

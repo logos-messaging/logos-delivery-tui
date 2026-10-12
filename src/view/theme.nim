@@ -14,6 +14,7 @@ proc ldtuiTheme*(): Theme =
   result.styles[tkInputFocused] = ink
   result.styles[tkSelection] = style(fgYellow, bgBlue, bright = true)
     # selected row while the widget is not focused (focused: white on green)
+  result.styles[tkCursor] = style(fgBlack, bgYellow) # text cursor: stands out on blue
   result.styles[tkTableHeader] = style(fgBlack, bgCyan) # distinct from the rows
   result.styles[tkScrollBar] = style(fgCyan, bgBlue)
   result.styles[tkProgress] = style(fgCyan, bgBlue)

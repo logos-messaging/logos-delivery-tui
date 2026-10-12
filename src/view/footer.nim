@@ -1,5 +1,6 @@
 ## Two-line control bar on a light-gray strip.
-##   line 1: network (preset, else cluster id) │ peer store (connected) │
+##   line 1: network (preset, else cluster id) · mode · layer │
+##           peer store (connected) │
 ##           message counters                              [Log: LEVEL ▾]
 ##   line 2: [self peer id ▾] ● health          F2 terminal  F3 logs  F9 …
 ## The peer id button opens a menu of this node's multiaddrs and mounted
@@ -77,7 +78,11 @@ proc renderHealth(f: Footer) =
 
 proc render(f: Footer) =
   let s = f.stats
-  f.network.setText(" " & (if s.network.len > 0: s.network else: "-") & " ")
+  var net = if s.network.len > 0: s.network else: "-"
+  for part in [s.mode, s.layer]:
+    if part.len > 0:
+      net.add " · " & part
+  f.network.setText(" " & net & " ")
   f.peers.setText(" peers " & $s.peerStore & " (" & $s.peers & " conn) ")
   f.messages.setText(
     " sent " & $s.sent & " · prop " & $s.propagated & " · recv " & $s.received &

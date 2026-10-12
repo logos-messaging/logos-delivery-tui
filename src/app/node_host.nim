@@ -1,6 +1,7 @@
 ## Owns the single in-process LogosDelivery instance: create / start / stop /
-## restart from a JSON config (same shape as `logosdelivery_create_node` and
-## the delivery-module `createNode`). Controllers register attach/detach hooks
+## restart from a JSON config: a `LogosDeliveryConf` (same shape as
+## `logosdelivery_create_node` and the delivery-module `createNode`), or a
+## `LogosDeliveryNodeConf` (Node management; see control/node_conf.nim). Controllers register attach/detach hooks
 ## so their logos-delivery listeners never outlive the node they closed over.
 
 {.push raises: [].}
@@ -11,7 +12,7 @@ import libp2p/peerid
 import logos_delivery
 import logos_delivery/waku/node/waku_node
 import logos_delivery/api/conf/logos_delivery_conf_json
-import ../control/tui_brokers
+import ../control/[tui_brokers, node_conf]
 
 export logos_delivery
 
@@ -28,6 +29,7 @@ type
 
   NodeHost* = ref object
     confJson*: string
+    nodeConf*: bool ## confJson is a LogosDeliveryNodeConf JSON
     ld*: LogosDelivery
     state*: NodeState
     lastError*: string
@@ -73,19 +75,28 @@ proc fail(h: NodeHost, msg: string): Result[void, string] =
   err(msg)
 
 proc start*(
-    h: NodeHost, confJson = ""
+    h: NodeHost, confJson = "", nodeConf = false
 ): Future[Result[void, string]] {.async: (raises: []).} =
-  ## A non-empty `confJson` becomes the node's config first.
+  ## A non-empty `confJson` becomes the node's config first; `nodeConf` says
+  ## which kind it is.
   if h.state in {NodeState.Starting, NodeState.Running, NodeState.Stopping}:
     return err("node is " & $h.state)
   if confJson.strip.len > 0:
     h.confJson = confJson
+    h.nodeConf = nodeConf
   if h.confJson.strip.len == 0:
     return h.fail("no node configuration given")
   h.setState(NodeState.Starting)
 
-  let conf = parseLogosDeliveryConf(h.confJson).valueOr:
-    return h.fail("invalid node configuration: " & error)
+  # Parse before touching the broker context, so a bad config changes nothing.
+  var conf: LogosDeliveryConf
+  var nodeConf: LogosDeliveryNodeConf
+  if h.nodeConf:
+    nodeConf = loadNodeConf(h.confJson).valueOr:
+      return h.fail("invalid node configuration: " & error)
+  else:
+    conf = parseLogosDeliveryConf(h.confJson).valueOr:
+      return h.fail("invalid node configuration: " & error)
 
   # `Waku.new` adopts `globalBrokerContext()` as its brokerCtx, and Waku.stop
   # leaves some providers registered (e.g. ServicePeersRequest from
@@ -96,7 +107,10 @@ proc start*(
 
   let ld =
     try:
-      (await LogosDelivery.new(conf)).valueOr:
+      (
+        if h.nodeConf: await LogosDelivery.new(nodeConf)
+        else: await LogosDelivery.new(conf)
+      ).valueOr:
         return h.fail("failed to create node: " & error)
     except CatchableError as e:
       return h.fail("failed to create node: " & e.msg)
@@ -136,16 +150,16 @@ proc stop*(h: NodeHost): Future[Result[void, string]] {.async: (raises: []).} =
   ok()
 
 proc restart*(
-    h: NodeHost, confJson = ""
+    h: NodeHost, confJson = "", nodeConf = false
 ): Future[Result[void, string]] {.async: (raises: []).} =
   ?(await h.stop())
-  await h.start(confJson)
+  await h.start(confJson, nodeConf)
 
 proc installProviders*(h: NodeHost) =
   discard TuiNodeStart.setProvider(
     tuiCtx,
-    proc(confJson: string): Future[Result[void, string]] {.async.} =
-      (await h.start(confJson)),
+    proc(confJson: string, nodeConf: bool): Future[Result[void, string]] {.async.} =
+      (await h.start(confJson, nodeConf)),
   )
   discard TuiNodeStop.setProvider(
     tuiCtx,
@@ -154,13 +168,13 @@ proc installProviders*(h: NodeHost) =
   )
   discard TuiNodeRestart.setProvider(
     tuiCtx,
-    proc(confJson: string): Future[Result[void, string]] {.async.} =
-      (await h.restart(confJson)),
+    proc(confJson: string, nodeConf: bool): Future[Result[void, string]] {.async.} =
+      (await h.restart(confJson, nodeConf)),
   )
   discard TuiConfigJson.setProvider(
     tuiCtx,
-    proc(): Result[string, string] =
-      ok(h.confJson),
+    proc(): Result[HostConf, string] =
+      ok(HostConf(json: h.confJson, nodeConf: h.nodeConf)),
   )
 
 {.pop.}

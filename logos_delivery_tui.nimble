@@ -24,8 +24,9 @@ requires "nim == 2.2.6"
 requires "https://github.com/logos-messaging/logos-delivery#1dd3d3877caf969dc9d821fcb13536d6f133104f"
 # v3.4.0, the same commit logos-delivery pins.
 requires "https://github.com/NagyZoltanPeter/nim-brokers.git#fd97eb355eee5d14594e0b4599964eff00648ec7"
-# feat-treeview-hscroll (TreeView scrolling + setRoots), on top of v0.1.0
-requires "https://github.com/NagyZoltanPeter/nim-illview.git#cbfecdbc1464d7f403b8fa998dc6f1722c00afd1"
+# feat-cursor-style (tkCursor), on top of feat-treeview-hscroll (TreeView
+# scrolling + setRoots) and v0.1.0
+requires "https://github.com/NagyZoltanPeter/nim-illview.git#33320ab69db6853f13fe59648ff9c33aa0f5f778"
 # Versions come from logos-delivery's lock.
 requires "chronos", "chronicles", "results", "stew"
 
@@ -82,5 +83,5 @@ task tui, "Build and run the TUI; extra args are passed through (default: --node
   exec "build/logos_delivery_tui " & args.quoteShellCommand
 
 task test, "Run unit tests":
-  for t in ["test_scenario_parse", "test_config_flatten", "test_peer_trees", "test_conf_resolve"]:
+  for t in ["test_scenario_parse", "test_config_flatten", "test_peer_trees", "test_conf_resolve", "test_node_conf"]:
     exec "nim c -r --hints:off -o:build/tests/" & t & " tests/" & t & ".nim"

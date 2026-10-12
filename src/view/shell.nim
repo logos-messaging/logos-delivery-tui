@@ -10,8 +10,8 @@ import chronos, chronicles, results
 import illview
 import ../app/cli
 import ../control/tui_brokers
-import ./[footer, sidebar, theme, v_messaging, v_node_health, v_config, v_scenario,
-  v_placeholder]
+import ./[footer, sidebar, theme, v_messaging, v_node_health, v_config, v_node_mgmt,
+  v_scenario, v_placeholder]
 
 logScope:
   topics = "ldtui shell"
@@ -19,6 +19,8 @@ logScope:
 type Shell = ref object
   app: App
   main: Group
+  split: Splitter ## sidebar | tabs
+  sidePos: int ## divider position while the sidebar is hidden (F9)
   tabs: TabView
   side: Sidebar
   logPane: TextView
@@ -26,6 +28,7 @@ type Shell = ref object
   pages: tables.Table[string, Window]
   health: NodeHealthView
   config: ConfigView
+  nodeMgmt: NodeMgmtView
   scenario: ScenarioView
 
 proc openView(sh: Shell, name: string) =
@@ -40,6 +43,8 @@ proc openView(sh: Shell, name: string) =
   focusInto(sh.app.desktop, w)
   if name == VConfig:
     sh.config.refresh()
+  elif name == VNodeMgmt:
+    sh.nodeMgmt.refresh()
   elif name == VHealth:
     asyncSpawn sh.health.refresh()
   sh.app.requestRedraw()
@@ -51,12 +56,24 @@ proc toggleLogPane(sh: Shell) =
   sh.app.desktop.invalidate()
 
 proc toggleSidebar(sh: Shell) =
+  ## Hidden: the tabs leave the splitter and fill the main area alone.
   let t = sh.side.tree
-  t.visible = not t.visible
   if t.visible:
+    let hadFocus = t.isFocused
+    t.visible = false
+    sh.sidePos = sh.split.pos
+    sh.main.remove(sh.split)
+    Group(sh.split).remove(sh.tabs)
+    sh.main.add(sh.tabs)
+    if hadFocus:
+      focusInto(sh.app.desktop, sh.tabs)
+  else:
+    t.visible = true
+    sh.main.remove(sh.tabs)
+    Group(sh.split).add(sh.tabs)
+    sh.split.pos = sh.sidePos
+    sh.main.add(sh.split)
     setFocus(sh.app.desktop, t)
-  elif t.isFocused:
-    focusInto(sh.app.desktop, sh.tabs)
   sh.main.invalidate()
 
 proc terminalMode(app: App) {.async: (raises: []).} =
@@ -122,20 +139,23 @@ proc build(sh: Shell) =
   sh.side.onOpen = proc(name: string) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}:
       sh.openView(name)
-  sh.main.add sh.side.tree
   sh.tabs = newTabView()
   sh.tabs.dock = dkFill
-  sh.main.add sh.tabs
+  sh.split = newSplitter(axH, sh.side.tree, sh.tabs, pos = 26)
+  sh.split.dock = dkFill
+  sh.main.add sh.split
   app.desktop.add sh.main
 
   # Views are built once and only added to / removed from the TabView.
   let msg = newMessagingView()
   sh.health = newNodeHealthView(app)
   sh.config = newConfigView(app)
+  sh.nodeMgmt = newNodeMgmtView(app)
   sh.scenario = newScenarioView(app)
   sh.pages[VMessaging] = msg.page
   sh.pages[VHealth] = sh.health.page
   sh.pages[VConfig] = sh.config.page
+  sh.pages[VNodeMgmt] = sh.nodeMgmt.page
   sh.pages[VScenario] = sh.scenario.page
   for name in [VChannels, VKernel, VPeers]:
     sh.pages[name] = newPlaceholderView(name)
@@ -164,13 +184,14 @@ proc runTui*(c: CliConf): Future[int] {.async: (raises: []).} =
 
   if c.nodeConf.len > 0:
     sh.config.setSource(c.nodeConf)
+    sh.nodeMgmt.setSource(c.nodeConf)
   if c.scenario.len > 0:
     sh.scenario.loadFile(c.scenario)
 
   if c.nodeConf.len > 0 and c.autostart:
     sh.openView(VMessaging)
     asyncSpawn (proc() {.async: (raises: []).} =
-      let r = await TuiNodeStart.request(tuiCtx, "")
+      let r = await TuiNodeStart.request(tuiCtx, "", false)
       if r.isErr:
         sh.openView(VConfig))()
   else:

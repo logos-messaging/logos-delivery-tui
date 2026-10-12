@@ -57,6 +57,33 @@ type
     json*: string ## the patched config JSON, pretty-printed
     message*: string
 
+  NodeOptKind* {.pure.} = enum
+    Bool
+    Choice ## an enum: one of `choices`
+    List
+    Text
+
+  NodeOption* = object
+    ## One `LogosDeliveryNodeConf` option (node_conf.nim).
+    cli*: string ## CLI / JSON name
+    field*: string ## Nim field name (also accepted in JSON)
+    part*: string ## top | messaging | kernel
+    group*: string ## for the tree
+    desc*: string
+    kind*: NodeOptKind
+    choices*: seq[string]
+    default*: string ## display form; "" = unset
+    secret*: bool
+
+  NodeOptionRow* = object
+    opt*: NodeOption
+    value*: string ## display form
+    source*: string ## json | default
+
+  HostConf* = object
+    json*: string
+    nodeConf*: bool ## a LogosDeliveryNodeConf JSON (Node management)
+
   PeerRow* = object
     protocol*: string
     peerId*: string
@@ -97,6 +124,8 @@ EventBroker:
     seen*: int ## relay-level traffic (MessageSeenEvent), shown as "relayed"
     errors*: int
     network*: string ## preset name when one is in use, else "cluster <id>"
+    mode*: string ## Core | Edge; "" for the kernel layer (no mode)
+    layer*: string ## mounted entry layer: kernel | messaging | channels
     peerStore*: int ## peers known to the peer store
     peers*: int ## connected peers
     mesh*: seq[MeshEntry]
@@ -170,18 +199,40 @@ RequestBroker(sync):
     ## with the node's own config parser.
 
 RequestBroker(sync):
-  proc TuiConfigJson*(): Result[string, string]
+  proc TuiConfigJson*(): Result[HostConf, string]
     ## The node config JSON the host was given (or last applied).
 
+RequestBroker(sync):
+  proc TuiNodeOptions*(confJson: string): Result[seq[NodeOptionRow], string]
+    ## Every LogosDeliveryNodeConf option with the value `confJson` sets, or
+    ## its default.
+
+RequestBroker(sync):
+  proc TuiNodeConfPatch*(
+    confJson: string, cli: string, valueJson: string, append: bool, reset: bool
+  ): Result[ConfigPatch, string]
+    ## Sets / appends to / resets one option of a LogosDeliveryNodeConf JSON,
+    ## checked with the node's own translation.
+
+RequestBroker(sync):
+  proc TuiNodeConfFrom*(text: string): Result[ConfigPatch, string]
+    ## `text` as LogosDeliveryNodeConf JSON (converted from a LogosDeliveryConf
+    ## shape when needed; `message` lists what was dropped).
+
 RequestBroker:
-  proc TuiNodeStart*(confJson: string): Future[Result[void, string]] {.async.}
-    ## Empty `confJson` starts with the current config.
+  proc TuiNodeStart*(
+    confJson: string, nodeConf: bool
+  ): Future[Result[void, string]] {.async.}
+    ## Empty `confJson` starts with the current config. `nodeConf`: the JSON is
+    ## a LogosDeliveryNodeConf (else a LogosDeliveryConf).
 
 RequestBroker:
   proc TuiNodeStop*(): Future[Result[void, string]] {.async.}
 
 RequestBroker:
-  proc TuiNodeRestart*(confJson: string): Future[Result[void, string]] {.async.}
+  proc TuiNodeRestart*(
+    confJson: string, nodeConf: bool
+  ): Future[Result[void, string]] {.async.}
     ## Empty `confJson` restarts with the current config.
 
 RequestBroker:

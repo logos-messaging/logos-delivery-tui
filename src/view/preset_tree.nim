@@ -48,7 +48,31 @@ proc newPresetTree*(): PresetTree =
   t.onActivate = proc(tv: TreeView) {.gcsafe, raises: [].} =
     t.pickSelected() # Enter on a leaf; Enter on a branch folds it
 
+proc fieldNodes(t: PresetTree, p: PresetInfo, rootKey: string): seq[TreeNode] =
+  ## One node per preset field (list fields: a branch of their items),
+  ## registering what each puts into the config.
+  for f in p.fields:
+    let fieldKey = rootKey & "/" & f.label
+    if f.isList:
+      var items: seq[TreeNode]
+      for j, item in f.items:
+        let itemKey = fieldKey & "/" & $j
+        items.add treeNode(item, key = itemKey)
+        t.picks[itemKey] = PresetPick(
+          cfgKey: f.cfgKey, valueJson: jsonStr(item), append: true,
+          what: p.name & " " & f.label & " #" & $(j + 1),
+        )
+      result.add treeNode(f.label & " (" & $f.items.len & ")", items, key = fieldKey)
+      t.picks[fieldKey] =
+        PresetPick(cfgKey: f.cfgKey, valueJson: f.cfgValue, what: p.name & " " & f.label)
+    else:
+      result.add treeNode(f.label.alignLeft(32) & f.value, key = fieldKey)
+      if f.cfgKey.len > 0:
+        t.picks[fieldKey] =
+          PresetPick(cfgKey: f.cfgKey, valueJson: f.cfgValue, what: p.name & " " & f.label)
+
 proc setPresets*(t: PresetTree, presets: seq[PresetInfo], active: string) =
+  ## All presets, one branch each; the active one marked and expanded.
   t.picks.clear()
   var roots: seq[TreeNode]
   for p in presets:
@@ -57,29 +81,16 @@ proc setPresets*(t: PresetTree, presets: seq[PresetInfo], active: string) =
     t.picks[rootKey] = PresetPick(
       cfgKey: "preset", valueJson: jsonStr(p.name), what: "preset " & p.name
     )
-    var kids: seq[TreeNode]
-    for i, f in p.fields:
-      let fieldKey = rootKey & "/" & f.label
-      if f.isList:
-        var items: seq[TreeNode]
-        for j, item in f.items:
-          let itemKey = fieldKey & "/" & $j
-          items.add treeNode(item, key = itemKey)
-          t.picks[itemKey] = PresetPick(
-            cfgKey: f.cfgKey, valueJson: jsonStr(item), append: true,
-            what: p.name & " " & f.label & " #" & $(j + 1),
-          )
-        kids.add treeNode(f.label & " (" & $f.items.len & ")", items, key = fieldKey)
-        t.picks[fieldKey] =
-          PresetPick(cfgKey: f.cfgKey, valueJson: f.cfgValue, what: p.name & " " & f.label)
-      else:
-        kids.add treeNode(f.label.alignLeft(32) & f.value, key = fieldKey)
-        if f.cfgKey.len > 0:
-          t.picks[fieldKey] =
-            PresetPick(cfgKey: f.cfgKey, valueJson: f.cfgValue, what: p.name & " " & f.label)
-    let root = treeNode((if isActive: "● " else: "  ") & p.name, kids, key = rootKey)
+    let root = treeNode(
+      (if isActive: "● " else: "  ") & p.name, t.fieldNodes(p, rootKey), key = rootKey
+    )
     root.expanded = isActive # new nodes only; the user's choice wins later
     roots.add root
   t.setRoots(roots)
+
+proc setPreset*(t: PresetTree, p: PresetInfo) =
+  ## One preset's fields as the roots (Node management's preset pane).
+  t.picks.clear()
+  t.setRoots(t.fieldNodes(p, "p:" & p.name))
 
 {.pop.}

@@ -21,6 +21,7 @@ const
   VPeers* = "Peers"
   VHealth* = "Node health"
   VConfig* = "Current configuration"
+  VNodeMgmt* = "Node management"
   VScenario* = "Send scenario"
 
 proc openSelected(s: Sidebar) =
@@ -35,21 +36,21 @@ method handleEvent*(t: SideTree, ev: Event): bool {.gcsafe, raises: [].} =
 
 proc newSidebar*(): Sidebar =
   let s = Sidebar()
-  let admin = treeNode("Admin", @[treeNode(VHealth), treeNode(VConfig)])
+  let admin = treeNode("Admin", @[treeNode(VHealth), treeNode(VConfig), treeNode(VNodeMgmt)])
   let testing = treeNode("Testing", @[treeNode(VScenario)])
   admin.expanded = true
   testing.expanded = true
   let tree = SideTree(owner: s, roots: @[
+    admin,
     treeNode(VChannels), treeNode(VMessaging), treeNode(VKernel), treeNode(VPeers),
-    admin, testing,
+    testing,
   ])
   initView(tree)
   tree.focusable = true
   s.tree = tree
   s.tree.border = bkSingle
   s.tree.borderTitle = "Menu"
-  s.tree.dock = dkLeft
-  s.tree.hint = (fixedHint(24), prefHint(0, stretch = 1))
+  s.tree.hint = (prefHint(24), prefHint(0, stretch = 1)) # width: the shell's splitter
   s.tree.onActivate = proc(t: TreeView) {.gcsafe, raises: [].} =
     s.openSelected()
   s

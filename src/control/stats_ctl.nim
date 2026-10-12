@@ -4,6 +4,7 @@
 
 {.push raises: [].}
 
+import std/[json, strutils]
 import chronos, chronicles, results
 import logos_delivery
 import logos_delivery/waku/node/waku_node
@@ -12,10 +13,11 @@ import logos_delivery/waku/waku_relay/protocol as relay_protocol
 import logos_delivery/waku/api/[peer_manager, relay as relay_api]
 import logos_delivery/api/conf/logos_delivery_conf_json
 import tools/confutils/cli_args
+import logos_delivery/api/conf/modes
 import libp2p/[peerinfo, multiaddress]
 import logos_delivery/waku/api/events/health_events
 import ../app/node_host
-import ./[tui_brokers, log_ctl]
+import ./[tui_brokers, log_ctl, node_conf]
 
 logScope:
   topics = "ldtui stats"
@@ -73,14 +75,39 @@ proc tick(c: StatsCtl) {.async: (raises: []).} =
     except CancelledError:
       return
 
-proc networkName(ld: LogosDelivery): string =
-  ## The preset from the config the node was built from, else the cluster id.
-  let conf = parseLogosDeliveryConf(host().confJson)
-  if conf.isOk:
-    let preset = WakuNodeConf(conf.get().kernelConf).preset
-    if preset.len > 0:
-      return preset
-  "cluster " & $ld.waku.conf.clusterId
+proc layerOf(ld: LogosDelivery): EntryLayer =
+  ## What is actually mounted, whatever the config said.
+  if not ld.reliableChannelManager.isNil: EntryLayer.channels
+  elif not ld.messagingClient.isNil: EntryLayer.messaging
+  else: EntryLayer.kernel
+
+proc describeNode(c: StatsCtl, ld: LogosDelivery) =
+  ## network: the preset from the config the node was built from (either
+  ## kind: LogosDeliveryNodeConf or LogosDeliveryConf), else the cluster id.
+  ## mode: Core / Edge from that config; the kernel layer has none.
+  let h = host()
+  let layer = ld.layerOf
+  var preset = ""
+  var mode = LogosDeliveryMode.Core
+  if h.nodeConf:
+    let conf = loadNodeConf(h.confJson)
+    if conf.isOk:
+      preset = conf.get().kernel.preset
+      mode = conf.get().mode.get(LogosDeliveryMode.Core)
+  else:
+    let conf = parseLogosDeliveryConf(h.confJson)
+    if conf.isOk:
+      preset = WakuNodeConf(conf.get().kernelConf).preset
+    try: # mode is consumed by the parser; read it from the JSON
+      let m = parseJson(h.confJson){"mode"}
+      if not m.isNil and m.kind == JString and m.getStr.strip.toLowerAscii == "edge":
+        mode = LogosDeliveryMode.Edge
+    except CatchableError:
+      discard
+  c.stats.network =
+    if preset.len > 0: preset else: "cluster " & $ld.waku.conf.clusterId
+  c.stats.mode = if layer == EntryLayer.kernel: "" else: $mode
+  c.stats.layer = $layer
 
 proc selfInfo(c: StatsCtl): Result[SelfInfo, string] =
   if c.ld.isNil or c.ld.waku.node.isNil:
@@ -95,7 +122,7 @@ proc attach(c: StatsCtl, ld: LogosDelivery) =
   c.ld = ld
   c.ctx = ld.waku.brokerCtx
   c.stats.peerId = host().peerIdStr
-  c.stats.network = networkName(ld)
+  c.describeNode(ld)
   c.sentL = MessageSentEvent.listen(
     c.ctx,
     proc(e: MessageSentEvent) {.async: (raises: []).} =

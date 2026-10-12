@@ -107,7 +107,7 @@ delivery-module's `createNode`. That is either the layered form
 | Click / Enter on a sidebar entry | Open that view as a tab, or focus it if already open. Arrow keys only move the selection. |
 | F2 | Terminal mode: the captured log is replayed into the shell scrollback and then streams live. **Enter** returns to the TUI. |
 | F3 | Show or hide the bottom log pane. |
-| F9 | Show or hide the sidebar. |
+| F9 | Show or hide the sidebar. Its width follows the divider on its right (drag it). |
 | F10 | Quit. The node is stopped cleanly. |
 | Tab / Shift-Tab | Move focus. |
 | Ctrl+PgUp / Ctrl+PgDn | Switch tabs. |
@@ -160,6 +160,37 @@ Views:
   parser's message, and the JSON is left unchanged. Apply & restart, Save
   as / Load and node start / stop work as before. Saved configs go to
   `~/.config/logos-delivery-tui/nodes/`.
+- **Admin → Node management** edits the node config as a
+  `LogosDeliveryNodeConf`: the logosdeliverynode command line written as flat
+  JSON with the CLI option names (`entry-layer`, `mode`, `reliability`,
+  `anonymity-level` and every kernel option). Start / Apply & restart build
+  the node with `LogosDelivery.new(LogosDeliveryNodeConf)`. A config in a
+  `LogosDeliveryConf` shape (a `--node-conf` file, Load…, Revert) is
+  converted when shown:
+
+  | From | To |
+  |---|---|
+  | layered | `entry-layer` (default `channels`), `preset`, `mode`; `messagingOverrides` keys lifted to the top level |
+  | kernel entry layer | `entry-layer: kernel`; `kernelConf` keys lifted |
+  | legacy flat / preset + mode only | kept, with `entry-layer: channels` |
+
+  What has no `LogosDeliveryNodeConf` option (`channelsOverrides`, the
+  messaging-only rate-limit / send-queue / backfill keys) is listed in the
+  status line.
+  - **Left: every option** (107), grouped (General, Messaging, Relay,
+    Discovery, Store, …), as option │ value │ set by (`json` / `default`) │
+    description. The list comes from the conf types, so it follows
+    logos-delivery. **Double-click or Enter** edits: a bool toggles, a choice
+    (entry-layer, mode, log-level, …) pops a menu, anything else opens an
+    input box (lists comma-separated; empty input resets to the default).
+    **Right-click** offers Edit… / Reset to default.
+  - **Right: the presets** as a list, and the options the selected one sets.
+    Double-click / Enter on a preset makes it the `preset`; on an option it
+    puts that value into the JSON (a list item is appended).
+
+  Every edit is checked with the node's own translation (the same steps
+  `LogosDelivery.new` runs) before the JSON changes; a rejected value leaves
+  it alone. Both configuration views keep their own editor.
 - **Testing → Send scenario** lets you edit, load, save and run a scenario,
   and shows its progress. Scenarios are saved to
   `~/.config/logos-delivery-tui/scenarios/`.
@@ -168,8 +199,12 @@ Views:
 
 The footer (control bar) is a light-gray strip:
 
-- **Line 1, left:** the preset in use (or `cluster <id>`), then the peer store
-  size with the number of connected peers, then the message counters.
+- **Line 1, left:** the network, mode and mounted layer, such as
+  `logos.test · Core · channels`. The network is the preset in use, or
+  `cluster <id>` without one. The mode (Core / Edge) is left out for the
+  kernel layer, which has none. The layer is what the running node actually
+  mounted. These are followed by the peer store size with the number of
+  connected peers, then the message counters.
 - **Line 1, right:** the log-level selector.
 - **Line 2, left:** this node's short peer id as a button. Its menu lists the
   full peer id, the announced multiaddrs and the mounted protocols. Next to it

@@ -1,6 +1,7 @@
-## Configuration view controller: the effective node configuration (presets
+## Configuration views' controller: the effective node configuration (presets
 ## merged, value sources), the network presets, and patching values into the
-## node config JSON. See conf_resolve.nim.
+## node config JSON (conf_resolve.nim); the LogosDeliveryNodeConf options for
+## Node management (node_conf.nim).
 
 {.push raises: [].}
 
@@ -9,7 +10,7 @@ import logos_delivery
 import logos_delivery/waku/factory/waku_conf
 import ../app/node_host
 import chronicles
-import ./[tui_brokers, conf_resolve, log_ctl]
+import ./[tui_brokers, conf_resolve, node_conf, log_ctl]
 
 template quietBuilds(body: untyped): untyped =
   ## The config builder logs every build ("No node key provided, generated a
@@ -31,7 +32,9 @@ proc init*() =
       # with. Stopped: what the editor's config would give.
       let h = host()
       quietBuilds:
-        if h.isRunning:
+        if h.isRunning and h.nodeConf:
+          runningRows(h.ld.waku.conf) # no LogosDeliveryConf to source against
+        elif h.isRunning:
           effectiveRows(h.confJson, h.ld.waku.conf)
         else:
           effectiveRows(confJson),
@@ -54,6 +57,28 @@ proc init*() =
       let patched = quietBuilds:
         patchConfig(confJson, cfgKey, valueJson, append)
       let (json, message) = ?patched
+      ok(ConfigPatch(json: json, message: message)),
+  )
+
+  discard TuiNodeOptions.setProvider(
+    tuiCtx,
+    proc(confJson: string): Result[seq[NodeOptionRow], string] =
+      nodeOptionRows(confJson),
+  )
+  discard TuiNodeConfPatch.setProvider(
+    tuiCtx,
+    proc(
+        confJson: string, cli: string, valueJson: string, append: bool, reset: bool
+    ): Result[ConfigPatch, string] =
+      let patched = quietBuilds:
+        patchNodeConf(confJson, cli, valueJson, append, reset)
+      let (json, message) = ?patched
+      ok(ConfigPatch(json: json, message: message)),
+  )
+  discard TuiNodeConfFrom.setProvider(
+    tuiCtx,
+    proc(text: string): Result[ConfigPatch, string] =
+      let (json, message) = ?toNodeConfJson(text)
       ok(ConfigPatch(json: json, message: message)),
   )
 

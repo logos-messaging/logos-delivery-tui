@@ -74,8 +74,11 @@ proc copySelectedRow(v: ConfigView) =
   v.putIntoConfig(kv.cfgKey, kv.cfgValue, false, kv.key)
 
 proc loadFromHost*(v: ConfigView) =
-  let j = TuiConfigJson.request(tuiCtx).valueOr("")
-  v.editor.setText(pretty(j))
+  let hc = TuiConfigJson.request(tuiCtx).valueOr(HostConf())
+  if hc.nodeConf:
+    v.status.setText("the node config is a LogosDeliveryNodeConf: see Admin → Node management")
+  else:
+    v.editor.setText(pretty(hc.json))
   v.refresh()
 
 proc setSource*(v: ConfigView, s: string) =
@@ -94,7 +97,7 @@ proc applyRestart(v: ConfigView) {.async: (raises: []).} =
     v.status.setText(error)
     return
   v.status.setText("restarting node…")
-  let r = await TuiNodeRestart.request(tuiCtx, text)
+  let r = await TuiNodeRestart.request(tuiCtx, text, false)
   v.status.setText(if r.isOk: "node restarted with the edited config" else: "restart failed: " & r.error)
   v.refresh()
 
@@ -107,7 +110,7 @@ proc startStop(v: ConfigView, start: bool) {.async: (raises: []).} =
       return
   v.status.setText(if start: "starting node…" else: "stopping node…")
   let r =
-    if start: await TuiNodeStart.request(tuiCtx, text)
+    if start: await TuiNodeStart.request(tuiCtx, text, false)
     else: await TuiNodeStop.request(tuiCtx)
   v.status.setText(
     if r.isOk: (if start: "node started" else: "node stopped")
