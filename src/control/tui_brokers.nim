@@ -24,8 +24,8 @@ type
   ChatStatus* {.pure.} = enum
     Pending = "…"
     Queued = "queued"
-    Sent = "sent ✓"
-    Propagated = "propagated ✓✓"
+    Sent = "sent ✓✓" ## final: confirmed by a store node
+    Propagated = "propagated ✓" ## final only without store reliability
     Error = "error ✗"
     Live = "live"
     History = "history"

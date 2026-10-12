@@ -1,6 +1,11 @@
 ## Messaging control: send / subscribe / unsubscribe through the messaging API
 ## layer (`ld.messagingClient`), and a chat stream (`TuiChatLine`) built from
-## our sends plus MessageSent/Propagated/Error/Queued/Received events.
+## our sends plus MessageSent/Propagated/Error/Queued/Received events. Our own
+## messages coming back on a subscription are not shown again (echo_filter).
+##
+## Outgoing status: Queued (rate limit) → Propagated → Sent once a store node
+## confirms it (reliability on, not ephemeral; else Propagated is final), or
+## Error at any point.
 
 {.push raises: [].}
 
@@ -9,7 +14,7 @@ import chronos, chronicles, results, stew/byteutils
 import logos_delivery
 import logos_delivery/messaging/api/[send, subscription]
 import ../app/node_host
-import ./tui_brokers
+import ./[tui_brokers, echo_filter]
 
 logScope:
   topics = "ldtui messaging"
@@ -18,6 +23,7 @@ type MessagingCtl = ref object
   ld: LogosDelivery
   ctx: BrokerContext
   outgoing: HashSet[string] ## requestIds we sent, to tag their status events
+  echoes: EchoFilter ## our sends, to recognise them when they come back
   sentL: MessageSentEventListener
   propL: MessagePropagatedEventListener
   errL: MessageErrorEventListener
@@ -33,27 +39,32 @@ proc nowTs(): string =
     ""
 
 proc printable*(payload: seq[byte]): string =
-  ## Payload as text when it is valid UTF-8 without control characters,
+  ## Payload as text when it is valid UTF-8 without control characters (C0
+  ## except tab, DEL, C1: a terminal may act on them, e.g. U+009B as CSI),
   ## otherwise as hex.
   let s = string.fromBytes(payload)
   if validateUtf8(s) == -1:
     var ok = true
-    for c in s:
-      if c < ' ' and c notin {'\t'}:
+    for r in s.runes:
+      let c = r.int32
+      if (c < 0x20 and c != 0x09) or (c >= 0x7F and c <= 0x9F):
         ok = false
         break
     if ok:
       return s
   "0x" & payload.toHex()
 
-proc status(c: MessagingCtl, requestId: string, st: ChatStatus) =
+proc status(c: MessagingCtl, requestId, msgHash: string, st: ChatStatus) =
+  c.echoes.hashKnown(requestId, msgHash)
   if requestId notin c.outgoing:
     return
   TuiChatLine.emit(
     tuiCtx,
     TuiChatLine(key: requestId, dir: ChatDir.Outgoing, status: st, ts: nowTs()),
   )
-  if st in {ChatStatus.Propagated, ChatStatus.Error}:
+  # Propagated is not final: the store confirmation (Sent) follows it when
+  # reliability is on. Without it the id stays in the set until detach.
+  if st in {ChatStatus.Sent, ChatStatus.Error}:
     c.outgoing.excl requestId
 
 proc send(
@@ -70,6 +81,7 @@ proc send(
       return err("send failed: " & e.msg)
   let key = $reqId
   c.outgoing.incl key
+  c.echoes.sent(key, contentTopic, payload)
   TuiChatLine.emit(
     tuiCtx,
     TuiChatLine(
@@ -89,27 +101,29 @@ proc attach(c: MessagingCtl, ld: LogosDelivery) =
   c.sentL = MessageSentEvent.listen(
     c.ctx,
     proc(e: MessageSentEvent) {.async: (raises: []).} =
-      c.status($e.requestId, ChatStatus.Sent),
+      c.status($e.requestId, e.messageHash, ChatStatus.Sent),
   ).valueOr(MessageSentEventListener())
   c.propL = MessagePropagatedEvent.listen(
     c.ctx,
     proc(e: MessagePropagatedEvent) {.async: (raises: []).} =
-      c.status($e.requestId, ChatStatus.Propagated),
+      c.status($e.requestId, e.messageHash, ChatStatus.Propagated),
   ).valueOr(MessagePropagatedEventListener())
   c.errL = MessageErrorEvent.listen(
     c.ctx,
     proc(e: MessageErrorEvent) {.async: (raises: []).} =
       warn "message error", requestId = $e.requestId, error = e.error
-      c.status($e.requestId, ChatStatus.Error),
+      c.status($e.requestId, e.messageHash, ChatStatus.Error),
   ).valueOr(MessageErrorEventListener())
   c.queuedL = MessageQueuedEvent.listen(
     c.ctx,
     proc(e: MessageQueuedEvent) {.async: (raises: []).} =
-      c.status($e.requestId, ChatStatus.Queued),
+      c.status($e.requestId, e.messageHash, ChatStatus.Queued),
   ).valueOr(MessageQueuedEventListener())
   c.recvL = MessageReceivedEvent.listen(
     c.ctx,
     proc(e: MessageReceivedEvent) {.async: (raises: []).} =
+      if c.echoes.isEcho(e.messageHash, $e.message.contentTopic, e.message.payload):
+        return # our own message: its outgoing row already shows it
       TuiChatLine.emit(
         tuiCtx,
         TuiChatLine(
@@ -134,6 +148,7 @@ proc detach(c: MessagingCtl) {.async: (raises: []).} =
   await MessageQueuedEvent.dropListener(c.ctx, c.queuedL)
   await MessageReceivedEvent.dropListener(c.ctx, c.recvL)
   c.outgoing.clear()
+  c.echoes.clear()
   c.ld = nil
 
 proc init*() =
