@@ -832,8 +832,8 @@
       }
     },
     "illview": {
-      "version": "#394d254f0a2d3fb6604982acf34377a72bce13cf",
-      "vcsRevision": "394d254f0a2d3fb6604982acf34377a72bce13cf",
+      "version": "#377fe76b668325ad38ac2a3307fab7c15a388875",
+      "vcsRevision": "377fe76b668325ad38ac2a3307fab7c15a388875",
       "url": "https://github.com/NagyZoltanPeter/nim-illview.git",
       "downloadMethod": "git",
       "dependencies": [
