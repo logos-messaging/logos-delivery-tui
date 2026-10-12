@@ -372,4 +372,51 @@ proc patchNodeConf*(
     return err("not applied — the node would reject it: " & check.error)
   ok((json: outJson, message: message))
 
+# --- effective config ------------------------------------------------------------
+
+proc buildNodeConf(text: string): Result[WakuConf, string] =
+  let resolved = ?resolveCliConf(?loadNodeConf(text))
+  WakuNodeConf(resolved.kernelConf).toWakuConf()
+
+proc reduced(node: JsonNode, withPreset: bool): string =
+  ## The JSON reduced to what selects defaults: entry layer, mode, and the
+  ## preset when `withPreset`.
+  var keep = @["entry-layer", "entrylayer", "mode"]
+  if withPreset:
+    keep.add "preset"
+  var res = newJObject()
+  for k, v in node:
+    if k.toLowerAscii in keep:
+      res[k] = v
+  $res
+
+proc nodeConfEffectiveRows*(
+    text: string, running: WakuConf = nil
+): Result[seq[KV], string] =
+  ## `sourcedRows` for a LogosDeliveryNodeConf JSON: the running node's
+  ## config when given, else built exactly as LogosDelivery.new builds it.
+  let node =
+    try:
+      parseJson(text)
+    except CatchableError as e:
+      return err("invalid JSON: " & e.msg)
+  if node.kind != JObject:
+    return err("the config must be a JSON object")
+  let resolved = ?resolveCliConf(?loadNodeConf(text))
+  let built = ?WakuNodeConf(resolved.kernelConf).toWakuConf()
+  ok(sourcedRows(
+    (if running.isNil: built else: running), built,
+    buildNodeConf(node.reduced(withPreset = true)),
+    buildNodeConf(node.reduced(withPreset = false)),
+    resolved.messagingConf, resolved.channelsConf,
+  ))
+
+proc nodeConfPresetOf*(text: string): string =
+  ## The preset a LogosDeliveryNodeConf JSON's node uses ("" if none).
+  let conf = loadNodeConf(text)
+  if conf.isErr:
+    return ""
+  let resolved = resolveCliConf(conf.get)
+  if resolved.isErr: "" else: appliedPreset(WakuNodeConf(resolved.get.kernelConf))
+
 {.pop.}

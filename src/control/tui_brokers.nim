@@ -38,8 +38,6 @@ type
     key*: string
     value*: string
     source*: string ## runtime | config | preset | default | "" (unknown)
-    cfgKey*: string ## config JSON key (CLI name) when copyable, else ""
-    cfgValue*: string ## that key's value as JSON text
 
   PresetField* = object
     cfgKey*: string ## CLI name; "" = informational only
@@ -83,6 +81,16 @@ type
   HostConf* = object
     json*: string
     nodeConf*: bool ## a LogosDeliveryNodeConf JSON (Node management)
+
+  StartedConfig* = object
+    ## The configuration of the node last started (Current configuration).
+    started*: bool ## false: no node has been started yet
+    running*: bool
+    json*: string ## exactly the JSON it was started from
+    nodeConf*: bool ## that JSON is a LogosDeliveryNodeConf
+    preset*: string ## the preset its config build applied; "" = none
+    rows*: seq[KV] ## its effective config, with sources
+    error*: string ## the rows could not be built
 
   PeerRow* = object
     protocol*: string
@@ -180,9 +188,8 @@ RequestBroker:
   proc TuiDialPeer*(multiaddr: string): Future[Result[void, string]] {.async.}
 
 RequestBroker(sync):
-  proc TuiCurrentConfig*(confJson: string): Result[seq[KV], string]
-    ## The running node's effective config; when stopped, the one `confJson`
-    ## (the editor's text) would give.
+  proc TuiStartedConfig*(): Result[StartedConfig, string]
+    ## The config of the running (or last started) node.
 
 RequestBroker(sync):
   proc TuiPresets*(): Result[seq[PresetInfo], string]
@@ -190,13 +197,6 @@ RequestBroker(sync):
 RequestBroker(sync):
   proc TuiActivePreset*(confJson: string): Result[string, string]
     ## The preset named by `confJson` ("" if none).
-
-RequestBroker(sync):
-  proc TuiPatchConfig*(
-    confJson: string, cfgKey: string, valueJson: string, append: bool
-  ): Result[ConfigPatch, string]
-    ## Puts `cfgKey` = `valueJson` where the config's shape keeps it, checked
-    ## with the node's own config parser.
 
 RequestBroker(sync):
   proc TuiConfigJson*(): Result[HostConf, string]

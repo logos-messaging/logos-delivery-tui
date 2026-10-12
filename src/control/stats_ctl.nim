@@ -11,13 +11,12 @@ import logos_delivery/waku/node/waku_node
 import logos_delivery/waku/node/health_monitor/node_health_monitor
 import logos_delivery/waku/waku_relay/protocol as relay_protocol
 import logos_delivery/waku/api/[peer_manager, relay as relay_api]
-import logos_delivery/api/conf/logos_delivery_conf_json
 import tools/confutils/cli_args
 import logos_delivery/api/conf/modes
 import libp2p/[peerinfo, multiaddress]
 import logos_delivery/waku/api/events/health_events
 import ../app/node_host
-import ./[tui_brokers, log_ctl, node_conf]
+import ./[tui_brokers, log_ctl, node_conf, conf_resolve]
 
 logScope:
   topics = "ldtui stats"
@@ -82,22 +81,19 @@ proc layerOf(ld: LogosDelivery): EntryLayer =
   else: EntryLayer.kernel
 
 proc describeNode(c: StatsCtl, ld: LogosDelivery) =
-  ## network: the preset from the config the node was built from (either
+  ## network: the preset the config the node was built from applied (either
   ## kind: LogosDeliveryNodeConf or LogosDeliveryConf), else the cluster id.
   ## mode: Core / Edge from that config; the kernel layer has none.
   let h = host()
   let layer = ld.layerOf
-  var preset = ""
+  let preset =
+    if h.nodeConf: nodeConfPresetOf(h.confJson) else: presetOf(h.confJson)
   var mode = LogosDeliveryMode.Core
   if h.nodeConf:
     let conf = loadNodeConf(h.confJson)
     if conf.isOk:
-      preset = conf.get().kernel.preset
       mode = conf.get().mode.get(LogosDeliveryMode.Core)
   else:
-    let conf = parseLogosDeliveryConf(h.confJson)
-    if conf.isOk:
-      preset = WakuNodeConf(conf.get().kernelConf).preset
     try: # mode is consumed by the parser; read it from the JSON
       let m = parseJson(h.confJson){"mode"}
       if not m.isNil and m.kind == JString and m.getStr.strip.toLowerAscii == "edge":

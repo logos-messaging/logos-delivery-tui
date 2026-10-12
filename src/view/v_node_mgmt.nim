@@ -355,13 +355,14 @@ proc newNodeMgmtView*(app: App): NodeMgmtView =
   # The options table gets the room; the preset panes keep a usable width
   # (the divider is clamped against this minimum).
   presets.hint = (SizeHint(min: 42, pref: 42), prefHint(0, stretch = 1))
+  let optionsBox = section(
+    "Node config (LogosDeliveryNodeConf)   double-click / Enter: edit · right-click: reset",
+    v.options,
+  )
+  # On a narrow screen the options keep their minimum and the presets give.
+  optionsBox.hint = (SizeHint(min: 40, pref: 40, stretch: 1), prefHint(3, stretch = 1))
   let top = newSplitter(
-    axH,
-    section(
-      "Node config (LogosDeliveryNodeConf)   double-click / Enter: edit · right-click: reset",
-      v.options,
-    ),
-    presets,
+    axH, optionsBox, presets,
     pos = 10_000, # clamped: everything but the preset panes' minimum
   )
   let body = newVBox()

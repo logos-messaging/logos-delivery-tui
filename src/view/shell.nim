@@ -183,7 +183,6 @@ proc runTui*(c: CliConf): Future[int] {.async: (raises: []).} =
   sh.health.start()
 
   if c.nodeConf.len > 0:
-    sh.config.setSource(c.nodeConf)
     sh.nodeMgmt.setSource(c.nodeConf)
   if c.scenario.len > 0:
     sh.scenario.loadFile(c.scenario)
@@ -193,9 +192,9 @@ proc runTui*(c: CliConf): Future[int] {.async: (raises: []).} =
     asyncSpawn (proc() {.async: (raises: []).} =
       let r = await TuiNodeStart.request(tuiCtx, "", false)
       if r.isErr:
-        sh.openView(VConfig))()
+        sh.openView(VNodeMgmt))()
   else:
-    sh.openView(VConfig)
+    sh.openView(VNodeMgmt)
   if c.scenario.len > 0:
     sh.openView(VScenario)
   setFocus(app.desktop, sh.side.tree)

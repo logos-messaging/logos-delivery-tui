@@ -11,6 +11,7 @@ import chronos, chronicles, results
 import libp2p/peerid
 import logos_delivery
 import logos_delivery/waku/node/waku_node
+import logos_delivery/waku/factory/waku_conf
 import logos_delivery/api/conf/logos_delivery_conf_json
 import ../control/[tui_brokers, node_conf]
 
@@ -30,6 +31,11 @@ type
   NodeHost* = ref object
     confJson*: string
     nodeConf*: bool ## confJson is a LogosDeliveryNodeConf JSON
+    # The node last started successfully, kept after it stops: exactly the
+    # JSON it was built from and the kernel config it ran with.
+    startedJson*: string
+    startedNodeConf*: bool
+    startedConf*: WakuConf
     ld*: LogosDelivery
     state*: NodeState
     lastError*: string
@@ -41,7 +47,7 @@ var gHost {.threadvar.}: NodeHost
 
 proc host*(): NodeHost =
   if gHost.isNil:
-    gHost = NodeHost(state: NodeState.Stopped)
+    gHost = NodeHost(state: NodeState.Stopped, startedConf: nil) # WakuConf: requiresInit
   gHost
 
 proc onAttach*(h: NodeHost, hook: AttachHook) =
@@ -125,6 +131,9 @@ proc start*(
     return h.fail("failed to start node: " & e.msg)
 
   h.ld = ld
+  h.startedJson = h.confJson
+  h.startedNodeConf = h.nodeConf
+  h.startedConf = ld.waku.conf
   for hook in h.attachHooks:
     hook(ld)
   h.setState(NodeState.Running, h.peerIdStr)

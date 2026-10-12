@@ -1,13 +1,11 @@
-## Configuration views' controller: the effective node configuration (presets
-## merged, value sources), the network presets, and patching values into the
-## node config JSON (conf_resolve.nim); the LogosDeliveryNodeConf options for
-## Node management (node_conf.nim).
+## Configuration views' controller: the started node's configuration with
+## the source of each value, and the network presets (conf_resolve.nim); the
+## LogosDeliveryNodeConf options for Node management (node_conf.nim).
 
 {.push raises: [].}
 
 import results
 import logos_delivery
-import logos_delivery/waku/factory/waku_conf
 import ../app/node_host
 import chronicles
 import ./[tui_brokers, conf_resolve, node_conf, log_ctl]
@@ -25,19 +23,28 @@ template quietBuilds(body: untyped): untyped =
     setLevel(saved)
 
 proc init*() =
-  discard TuiCurrentConfig.setProvider(
+  discard TuiStartedConfig.setProvider(
     tuiCtx,
-    proc(confJson: string): Result[seq[KV], string] =
-      # Running: what the node uses, sourced against the config it was started
-      # with. Stopped: what the editor's config would give.
+    proc(): Result[StartedConfig, string] =
       let h = host()
+      if h.startedJson.len == 0:
+        return ok(StartedConfig())
+      var res = StartedConfig(
+        started: true, running: h.isRunning, json: h.startedJson,
+        nodeConf: h.startedNodeConf,
+      )
       quietBuilds:
-        if h.isRunning and h.nodeConf:
-          runningRows(h.ld.waku.conf) # no LogosDeliveryConf to source against
-        elif h.isRunning:
-          effectiveRows(h.confJson, h.ld.waku.conf)
+        res.preset =
+          if h.startedNodeConf: nodeConfPresetOf(h.startedJson)
+          else: presetOf(h.startedJson)
+        let rows =
+          if h.startedNodeConf: nodeConfEffectiveRows(h.startedJson, h.startedConf)
+          else: effectiveRows(h.startedJson, h.startedConf)
+        if rows.isOk:
+          res.rows = rows.get
         else:
-          effectiveRows(confJson),
+          res.error = rows.error
+      ok(res),
   )
   discard TuiPresets.setProvider(
     tuiCtx,
@@ -49,17 +56,6 @@ proc init*() =
     proc(confJson: string): Result[string, string] =
       ok(activePreset(confJson)),
   )
-  discard TuiPatchConfig.setProvider(
-    tuiCtx,
-    proc(
-        confJson: string, cfgKey: string, valueJson: string, append: bool
-    ): Result[ConfigPatch, string] =
-      let patched = quietBuilds:
-        patchConfig(confJson, cfgKey, valueJson, append)
-      let (json, message) = ?patched
-      ok(ConfigPatch(json: json, message: message)),
-  )
-
   discard TuiNodeOptions.setProvider(
     tuiCtx,
     proc(confJson: string): Result[seq[NodeOptionRow], string] =

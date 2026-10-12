@@ -125,3 +125,36 @@ suite "patching":
         of NodeOptKind.List: $(%o.default.split(", "))
         else: $(%o.default)
       check loadNodeConf("{" & $(%o.cli) & ": " & v & "}").isOk
+
+suite "effective config of a node config":
+  const Conf = """{"entry-layer": "channels", "preset": "logos.test", "tcp-port": 60111}"""
+
+  proc row(rows: seq[KV], key: string): KV =
+    for r in rows:
+      if r.key == key:
+        return r
+    raiseAssert "no row " & key
+
+  test "values with their sources":
+    let rows = nodeConfEffectiveRows(Conf).get()
+    check:
+      row(rows, "kernel.clusterId").value == "2"
+      row(rows, "kernel.clusterId").source == "preset"
+      row(rows, "kernel.endpointConf.p2pTcpPort").value == "60111"
+      row(rows, "kernel.endpointConf.p2pTcpPort").source == "config"
+      row(rows, "kernel.relay").source == "default"
+      row(rows, "kernel.nodeKey").value == "<hidden>"
+
+  test "messaging rows for the messaging / channels layers only":
+    var sawMessaging = false
+    for r in nodeConfEffectiveRows(Conf).get():
+      sawMessaging = sawMessaging or r.key.startsWith("messaging.")
+    check sawMessaging
+    for r in nodeConfEffectiveRows("""{"entry-layer": "kernel"}""").get():
+      check not r.key.startsWith("messaging.")
+
+  test "preset in use":
+    check:
+      nodeConfPresetOf(Conf) == "logos.test"
+      nodeConfPresetOf("""{"entry-layer": "kernel"}""") == ""
+      nodeConfPresetOf("""{"entry-layer": "kernel", "cluster-id": 1}""") == "twn"

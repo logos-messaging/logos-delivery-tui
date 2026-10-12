@@ -36,14 +36,14 @@ method handleEvent*(t: SideTree, ev: Event): bool {.gcsafe, raises: [].} =
 
 proc newSidebar*(): Sidebar =
   let s = Sidebar()
-  let admin = treeNode("Admin", @[treeNode(VHealth), treeNode(VConfig), treeNode(VNodeMgmt)])
+  let admin = treeNode("Admin", @[treeNode(VHealth), treeNode(VConfig)])
   let testing = treeNode("Testing", @[treeNode(VScenario)])
   admin.expanded = true
   testing.expanded = true
   let tree = SideTree(owner: s, roots: @[
-    admin,
+    treeNode(VNodeMgmt),
     treeNode(VChannels), treeNode(VMessaging), treeNode(VKernel), treeNode(VPeers),
-    testing,
+    testing, admin,
   ])
   initView(tree)
   tree.focusable = true
