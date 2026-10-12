@@ -69,7 +69,7 @@ task buildNativeDeps, "Build the C libraries logos-delivery links (nat-libs, bea
     if not fileExists(leoTests / stub & ".cpp"):
       writeFile(leoTests / stub & ".cpp", "int main() { return 0; }\n")
 
-task tui, "Build and run the TUI; extra args are passed through (default: --node-conf=conf/logos-test.json)":
+task tui, "Build and run the TUI; extra args are passed through (default: --node-conf=conf/logos-dev.json)":
   var args: seq[string]
   var passthrough = false
   for a in commandLineParams():
@@ -78,7 +78,7 @@ task tui, "Build and run the TUI; extra args are passed through (default: --node
     elif a == "tui":
       passthrough = true
   if args.len == 0:
-    args = @["--node-conf=conf/logos-test.json"]
+    args = @["--node-conf=conf/logos-dev.json"]
   exec "nim c --hints:off -o:build/logos_delivery_tui src/logos_delivery_tui.nim"
   exec "build/logos_delivery_tui " & args.quoteShellCommand
 

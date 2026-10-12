@@ -129,7 +129,7 @@ proc build(sh: Shell) =
   sh.logPane.border = bkSingle
   sh.logPane.borderTitle = "Node log (F3 hide, F2 full terminal)"
   sh.logPane.hint = (prefHint(0, stretch = 1), fixedHint(12))
-  sh.logPane.visible = false
+  sh.logPane.visible = true # F3 hides it
   app.desktop.add sh.logPane
   app.captureTo(sh.logPane)
 

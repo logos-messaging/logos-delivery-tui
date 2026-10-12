@@ -126,14 +126,14 @@ logos_delivery_tui [--node-conf=<file.json>] [--scenario=<file.json>] [--headles
 ```
 
 - `--node-conf` takes the same JSON as `parseLogosDeliveryConf`: layered `{entryLayer, mode, preset, kernelConf, messagingOverrides, channelsOverrides}` or the legacy flat form.
-- With no `--node-conf`, the TUI opens the Config view with a default `{"preset":"logos.test"}` and the node not started. See **[D7]**.
+- With no `--node-conf`, the TUI opens the Config view with a default `{"preset":"logos.dev"}` and the node not started. See **[D7]**.
 - `--headless` requires `--node-conf` and `--scenario`. It exits non-zero if the node fails or a scenario `expect` fails.
 - Saved configs and scenarios go to `./conf/`, or to a path chosen in the save dialog. See **[D8]**.
 
 ## 7. Logs, log pane, terminal mode
 
 - `newApp(captureOutput = true)` redirects fd 1/2 to a pty, so chronicles' stdout output, from any thread, lands in illview's ring buffer (1 MiB).
-- `app.captureTo(logPaneTextView)` feeds the optional bottom log pane, with ANSI codes stripped. F3 (proposed) toggles the pane by setting `visible`, calling `invalidate`, and moving focus away if the pane held it.
+- `app.captureTo(logPaneTextView)` feeds the bottom log pane (shown at start), with ANSI codes stripped. F3 (proposed) toggles the pane by setting `visible`, calling `invalidate`, and moving focus away if the pane held it.
 - **F2** calls `disableTui()`, which replays the backlog into the real scrollback and then streams logs live, keeping their colours. **Enter** calls `enableTui()`. This is the ex14 pattern.
 - `--log-file` additionally tees to a file, for long fleet runs. Chronicles gets a second `textlines` sink. See **[D9]**.
 - Headless: no capture, logs go to stdout as normal, and the scenario report is written to stderr or to a file as JSONL.

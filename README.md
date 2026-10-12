@@ -39,7 +39,7 @@ nimble setup --localdeps -y    # deps from nimble.lock into ./nimbledeps
 nimble buildNativeDeps         # miniupnpc, libnatpmp, bearssl, leopard cmake stubs
 nimble build                   # -> ./logos_delivery_tui
 nimble test                    # unit tests
-nimble tui                     # build + run with --node-conf=conf/logos-test.json
+nimble tui                     # build + run with --node-conf=conf/logos-dev.json
 nimble tui --headless --scenario=conf/scenarios/ping.json   # any args pass through
 ```
 
@@ -106,7 +106,7 @@ delivery-module's `createNode`. That is either the layered form
 |---|---|
 | Click / Enter on a sidebar entry | Open that view as a tab, or focus it if already open. Arrow keys only move the selection. |
 | F2 | Terminal mode: the captured log is replayed into the shell scrollback and then streams live. **Enter** returns to the TUI. |
-| F3 | Show or hide the bottom log pane. |
+| F3 | Show or hide the bottom log pane (shown at start). |
 | F9 | Show or hide the sidebar. Its width follows the divider on its right (drag it). |
 | F10 | Quit. The node is stopped cleanly. |
 | Tab / Shift-Tab | Move focus. |

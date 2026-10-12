@@ -10,7 +10,7 @@ import results
 const AppDir = "logos-delivery-tui"
 
 const DefaultNodeConf* = """{
-  "preset": "logos.test",
+  "preset": "logos.dev",
   "mode": "Core"
 }
 """
