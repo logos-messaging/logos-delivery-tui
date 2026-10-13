@@ -45,7 +45,7 @@ proc optionCli(n: TreeNode): string =
   if n != nil and n.key.startsWith("o:"): n.key[2 .. ^1] else: ""
 
 method handleEvent*(t: OptionTree, ev: Event): bool {.gcsafe, raises: [].} =
-  if ev.kind == evMouse and ev.imouse.action == maPress:
+  if ev.kind == evMouse and ev.imouse.action == maPress and not t.isBarRow(ev.imouse.my):
     let at = point(ev.imouse.mx + t.absOrigin.x, ev.imouse.my + t.absOrigin.y)
     if ev.imouse.button == mbRight:
       discard procCall handleEvent(TreeView(t), Event(

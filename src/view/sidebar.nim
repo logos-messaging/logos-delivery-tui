@@ -31,7 +31,8 @@ proc openSelected(s: Sidebar) =
 
 method handleEvent*(t: SideTree, ev: Event): bool {.gcsafe, raises: [].} =
   result = procCall handleEvent(TreeView(t), ev)
-  if ev.kind == evMouse and ev.imouse.action == maPress and ev.imouse.button == mbLeft:
+  if ev.kind == evMouse and ev.imouse.action == maPress and ev.imouse.button == mbLeft and
+      not t.isBarRow(ev.imouse.my):
     t.owner.openSelected() # no-op on group rows (their ▸/▾ toggles)
 
 proc newSidebar*(): Sidebar =

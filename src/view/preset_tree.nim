@@ -31,7 +31,8 @@ proc pickSelected(t: PresetTree) =
     t.onPick(p[])
 
 method handleEvent*(t: PresetTree, ev: Event): bool {.gcsafe, raises: [].} =
-  if ev.kind == evMouse and ev.imouse.action == maPress and ev.clicks == 2:
+  if ev.kind == evMouse and ev.imouse.action == maPress and ev.clicks == 2 and
+      not t.isBarRow(ev.imouse.my):
     result = procCall handleEvent(TreeView(t), ev) # select the row
     t.pickSelected()
     return true
