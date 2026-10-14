@@ -9,3 +9,4 @@ build/
 *.db-wal
 *.sqlite3*
 .DS_Store
+.claude/settings.local.json
