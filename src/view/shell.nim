@@ -1,5 +1,6 @@
 ## TUI shell: sidebar tree | tab group, optional bottom log pane, two-line
-## footer. F2 terminal mode (Enter returns), F3 log pane, F9 sidebar, F10 quit.
+## footer. F2 terminal mode (Enter returns), F3 log pane, F4 log filter
+## (Shift+F4 off / on), F9 sidebar, F10 quit.
 ## Views talk to the control layer only through the app brokers.
 
 {.push raises: [].}
@@ -11,7 +12,7 @@ import illview
 import ../app/cli
 import ../control/tui_brokers
 import ./[footer, sidebar, theme, v_messaging, v_node_health, v_config, v_node_mgmt,
-  v_scenario, v_placeholder]
+  v_scenario, v_placeholder, log_pane, log_filter_dlg]
 
 logScope:
   topics = "ldtui shell"
@@ -24,6 +25,8 @@ type Shell = ref object
   tabs: TabView
   side: Sidebar
   logPane: TextView
+  log: LogPane ## the filtered feed behind `logPane`
+  filtering: bool ## the filter dialog is open
   footer: Footer
   pages: tables.Table[string, Window]
   health: NodeHealthView
@@ -124,14 +127,13 @@ proc build(sh: Shell) =
   sh.footer = newFooter()
   app.desktop.add sh.footer.bar
 
-  sh.logPane = newTextView(maxLines = 5000)
+  sh.log = newLogPane(app, maxLines = 5000) # fed from the output capture
+  sh.logPane = sh.log.view
   sh.logPane.dock = dkBottom
   sh.logPane.border = bkSingle
-  sh.logPane.borderTitle = "Node log (F3 hide, F2 full terminal)"
   sh.logPane.hint = (prefHint(0, stretch = 1), fixedHint(12))
   sh.logPane.visible = true # F3 hides it
   app.desktop.add sh.logPane
-  app.captureTo(sh.logPane)
 
   sh.main = newGroup()
   sh.main.dock = dkFill
@@ -169,6 +171,14 @@ proc build(sh: Shell) =
         asyncSpawn terminalMode(app)
       of Key.F3:
         sh.toggleLogPane()
+      of Key.F4:
+        if modShift in ev.keyMods:
+          sh.log.toggleFilter()
+        elif not sh.filtering:
+          sh.filtering = true
+          asyncSpawn (proc() {.async: (raises: []).} =
+            await editLogFilter(app, sh.log)
+            sh.filtering = false)()
       of Key.F9:
         sh.toggleSidebar()
       of Key.F10:
