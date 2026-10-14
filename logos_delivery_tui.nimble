@@ -22,8 +22,9 @@ requires "nim == 2.2.6"
 
 # logos-delivery master, pinned; bump deliberately (DESIGN.md D12).
 requires "https://github.com/logos-messaging/logos-delivery#1dd3d3877caf969dc9d821fcb13536d6f133104f"
-# v3.4.0, the same commit logos-delivery pins.
-requires "https://github.com/NagyZoltanPeter/nim-brokers.git#fd97eb355eee5d14594e0b4599964eff00648ec7"
+# v3.4.1 (BrokerScope); logos-delivery pins v3.4.0. gen_lock.py --brokers-rev
+# puts this one in the lock, and logos-delivery builds against it.
+requires "https://github.com/NagyZoltanPeter/nim-brokers.git#02d6f4bb26c94a44a80383f8827fd59b4e32e97f"
 # master (TreeView scrolling, tkCursor, wide chars, emoji width probe)
 requires "https://github.com/NagyZoltanPeter/nim-illview.git#5ead8c66e4843971ba27feccfd504a529ac323e0"
 # Versions come from logos-delivery's lock.

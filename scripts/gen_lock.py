@@ -8,11 +8,16 @@ logos-delivery's lock at the pinned revision, plus entries for logos_delivery
 and illview themselves. Checksums follow nimble's algorithm: sha1 over the
 sorted `git ls-files` list, feeding each file name then its content.
 
+`--brokers-rev` replaces the lock's nim-brokers entry. One brokers is compiled
+into the binary, logos-delivery's code included, and nimble installs what the
+lock says even when logos-delivery's .nimble pins another commit.
+
 Usage:
   scripts/gen_lock.py --ld-rev <commit> --illview-rev <commit> \
-      [--ld-repo URL_OR_PATH] [--illview-repo URL_OR_PATH]
+      [--brokers-rev <commit>] \
+      [--ld-repo URL_OR_PATH] [--illview-repo URL_OR_PATH] [--brokers-repo URL_OR_PATH]
 
-Re-run it whenever the logos-delivery or illview pin in
+Re-run it whenever the logos-delivery, illview or brokers pin in
 logos_delivery_tui.nimble is bumped (the revs must match the .nimble).
 """
 
@@ -27,6 +32,7 @@ import tempfile
 
 LD_URL = "https://github.com/logos-messaging/logos-delivery"
 ILLVIEW_URL = "https://github.com/NagyZoltanPeter/nim-illview.git"
+BROKERS_URL = "https://github.com/NagyZoltanPeter/nim-brokers.git"
 
 
 def git(*args, cwd=None):
@@ -82,6 +88,8 @@ def main():
     ap.add_argument("--ld-rev", required=True)
     ap.add_argument("--illview-repo", default=ILLVIEW_URL)
     ap.add_argument("--illview-rev", required=True)
+    ap.add_argument("--brokers-repo", default=BROKERS_URL)
+    ap.add_argument("--brokers-rev")
     ap.add_argument("--out", default="nimble.lock")
     a = ap.parse_args()
 
@@ -94,6 +102,18 @@ def main():
         with open(os.path.join(ld_dir, "nimble.lock")) as fh:
             lock = json.load(fh)
         pkgs = lock["packages"]
+
+        if a.brokers_rev:
+            if "brokers" not in pkgs:
+                sys.exit("no brokers entry in logos-delivery's lock to override")
+            br_dir = os.path.join(tmp, "brokers")
+            br_rev = checkout(a.brokers_repo, a.brokers_rev, br_dir)
+            pkgs["brokers"].update(
+                version="#" + br_rev,
+                vcsRevision=br_rev,
+                url=BROKERS_URL,
+                checksums={"sha1": nimble_sha1(br_dir)},
+            )
 
         for name in ("logos_delivery", "illview"):
             if name in pkgs:
@@ -127,7 +147,7 @@ def main():
         json.dump(lock, fh, indent=2)
         fh.write("\n")
     print(f"wrote {a.out}: logos_delivery {ld_rev[:12]}, illview {iv_rev[:12]}, "
-          f"{len(pkgs)} packages")
+          f"brokers {pkgs['brokers']['vcsRevision'][:12]}, {len(pkgs)} packages")
 
 
 if __name__ == "__main__":

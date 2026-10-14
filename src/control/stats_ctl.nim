@@ -6,6 +6,7 @@
 
 import std/[json, strutils]
 import chronos, chronicles, results
+import brokers/broker_scope
 import logos_delivery
 import logos_delivery/waku/node/waku_node
 import logos_delivery/waku/node/health_monitor/node_health_monitor
@@ -24,13 +25,7 @@ logScope:
 type StatsCtl = ref object
   stats: TuiStats
   ld: LogosDelivery
-  ctx: BrokerContext
-  sentL: MessageSentEventListener
-  propL: MessagePropagatedEventListener
-  recvL: MessageReceivedEventListener
-  seenL: MessageSeenEventListener
-  errL: MessageErrorEventListener
-  connL: EventConnectionStatusChangeListener
+  brokerScope: BrokerScope ## the node-event listeners of the attached node
   ticker: Future[void]
 
 var gStats {.threadvar.}: StatsCtl
@@ -116,49 +111,44 @@ proc selfInfo(c: StatsCtl): Result[SelfInfo, string] =
 
 proc attach(c: StatsCtl, ld: LogosDelivery) =
   c.ld = ld
-  c.ctx = ld.waku.brokerCtx
+  c.brokerScope = newBrokerScope(ld.waku.brokerCtx)
   c.stats.peerId = host().peerIdStr
   c.describeNode(ld)
-  c.sentL = MessageSentEvent.listen(
-    c.ctx,
+  discard MessageSentEvent.listen(
+    c.brokerScope,
     proc(e: MessageSentEvent) {.async: (raises: []).} =
       inc(c.stats.sent),
-  ).valueOr(MessageSentEventListener())
-  c.propL = MessagePropagatedEvent.listen(
-    c.ctx,
+  )
+  discard MessagePropagatedEvent.listen(
+    c.brokerScope,
     proc(e: MessagePropagatedEvent) {.async: (raises: []).} =
       inc(c.stats.propagated),
-  ).valueOr(MessagePropagatedEventListener())
-  c.recvL = MessageReceivedEvent.listen(
-    c.ctx,
+  )
+  discard MessageReceivedEvent.listen(
+    c.brokerScope,
     proc(e: MessageReceivedEvent) {.async: (raises: []).} =
       inc(c.stats.received),
-  ).valueOr(MessageReceivedEventListener())
-  c.seenL = MessageSeenEvent.listen(
-    c.ctx,
+  )
+  discard MessageSeenEvent.listen(
+    c.brokerScope,
     proc(e: MessageSeenEvent) {.async: (raises: []).} =
       inc(c.stats.seen),
-  ).valueOr(MessageSeenEventListener())
-  c.errL = MessageErrorEvent.listen(
-    c.ctx,
+  )
+  discard MessageErrorEvent.listen(
+    c.brokerScope,
     proc(e: MessageErrorEvent) {.async: (raises: []).} =
       inc(c.stats.errors),
-  ).valueOr(MessageErrorEventListener())
-  c.connL = EventConnectionStatusChange.listen(
-    c.ctx,
+  )
+  discard EventConnectionStatusChange.listen(
+    c.brokerScope,
     proc(e: EventConnectionStatusChange) {.async: (raises: []).} =
       c.stats.connStatus = $e.connectionStatus,
-  ).valueOr(EventConnectionStatusChangeListener())
+  )
 
 proc detach(c: StatsCtl) {.async: (raises: []).} =
   if c.ld.isNil:
     return
-  await MessageSentEvent.dropListener(c.ctx, c.sentL)
-  await MessagePropagatedEvent.dropListener(c.ctx, c.propL)
-  await MessageReceivedEvent.dropListener(c.ctx, c.recvL)
-  await MessageSeenEvent.dropListener(c.ctx, c.seenL)
-  await MessageErrorEvent.dropListener(c.ctx, c.errL)
-  await EventConnectionStatusChange.dropListener(c.ctx, c.connL)
+  await c.brokerScope.close()
   c.ld = nil
   c.stats.peers = 0
   c.stats.peerStore = 0

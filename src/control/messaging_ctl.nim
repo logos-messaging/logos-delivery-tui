@@ -11,6 +11,7 @@
 
 import std/[sets, times, unicode]
 import chronos, chronicles, results, stew/byteutils
+import brokers/broker_scope
 import logos_delivery
 import logos_delivery/messaging/api/[send, subscription]
 import ../app/node_host
@@ -21,14 +22,9 @@ logScope:
 
 type MessagingCtl = ref object
   ld: LogosDelivery
-  ctx: BrokerContext
+  brokerScope: BrokerScope ## the node-event listeners of the attached node
   outgoing: HashSet[string] ## requestIds we sent, to tag their status events
   echoes: EchoFilter ## our sends, to recognise them when they come back
-  sentL: MessageSentEventListener
-  propL: MessagePropagatedEventListener
-  errL: MessageErrorEventListener
-  queuedL: MessageQueuedEventListener
-  recvL: MessageReceivedEventListener
 
 var gMsg {.threadvar.}: MessagingCtl
 
@@ -101,30 +97,30 @@ proc send(
 
 proc attach(c: MessagingCtl, ld: LogosDelivery) =
   c.ld = ld
-  c.ctx = ld.waku.brokerCtx
-  c.sentL = MessageSentEvent.listen(
-    c.ctx,
+  c.brokerScope = newBrokerScope(ld.waku.brokerCtx)
+  discard MessageSentEvent.listen(
+    c.brokerScope,
     proc(e: MessageSentEvent) {.async: (raises: []).} =
       c.status($e.requestId, e.messageHash, ChatStatus.Sent),
-  ).valueOr(MessageSentEventListener())
-  c.propL = MessagePropagatedEvent.listen(
-    c.ctx,
+  )
+  discard MessagePropagatedEvent.listen(
+    c.brokerScope,
     proc(e: MessagePropagatedEvent) {.async: (raises: []).} =
       c.status($e.requestId, e.messageHash, ChatStatus.Propagated),
-  ).valueOr(MessagePropagatedEventListener())
-  c.errL = MessageErrorEvent.listen(
-    c.ctx,
+  )
+  discard MessageErrorEvent.listen(
+    c.brokerScope,
     proc(e: MessageErrorEvent) {.async: (raises: []).} =
       warn "message error", requestId = $e.requestId, error = e.error
       c.status($e.requestId, e.messageHash, ChatStatus.Error),
-  ).valueOr(MessageErrorEventListener())
-  c.queuedL = MessageQueuedEvent.listen(
-    c.ctx,
+  )
+  discard MessageQueuedEvent.listen(
+    c.brokerScope,
     proc(e: MessageQueuedEvent) {.async: (raises: []).} =
       c.status($e.requestId, e.messageHash, ChatStatus.Queued),
-  ).valueOr(MessageQueuedEventListener())
-  c.recvL = MessageReceivedEvent.listen(
-    c.ctx,
+  )
+  discard MessageReceivedEvent.listen(
+    c.brokerScope,
     proc(e: MessageReceivedEvent) {.async: (raises: []).} =
       if c.echoes.isEcho(e.messageHash, $e.message.contentTopic, e.message.payload):
         return # our own message: its outgoing row already shows it
@@ -143,16 +139,12 @@ proc attach(c: MessagingCtl, ld: LogosDelivery) =
           ts: nowTs(),
         ),
       ),
-  ).valueOr(MessageReceivedEventListener())
+  )
 
 proc detach(c: MessagingCtl) {.async: (raises: []).} =
   if c.ld.isNil:
     return
-  await MessageSentEvent.dropListener(c.ctx, c.sentL)
-  await MessagePropagatedEvent.dropListener(c.ctx, c.propL)
-  await MessageErrorEvent.dropListener(c.ctx, c.errL)
-  await MessageQueuedEvent.dropListener(c.ctx, c.queuedL)
-  await MessageReceivedEvent.dropListener(c.ctx, c.recvL)
+  await c.brokerScope.close()
   c.outgoing.clear()
   c.echoes.clear()
   c.ld = nil
