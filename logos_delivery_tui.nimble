@@ -21,12 +21,12 @@ requires "nim == 2.2.6"
 # logos-delivery's own lock. Bump a pin here => re-run gen_lock.py.
 
 # logos-delivery master, pinned; bump deliberately (DESIGN.md D12).
-requires "https://github.com/logos-messaging/logos-delivery#1dd3d3877caf969dc9d821fcb13536d6f133104f"
+requires "https://github.com/logos-messaging/logos-delivery#8a975a94ed0ae7ed635295635d7a5f817958793a"
 # v3.4.1 (BrokerScope); logos-delivery pins v3.4.0. gen_lock.py --brokers-rev
 # puts this one in the lock, and logos-delivery builds against it.
 requires "https://github.com/NagyZoltanPeter/nim-brokers.git#02d6f4bb26c94a44a80383f8827fd59b4e32e97f"
-# master (TreeView scrolling, tkCursor, wide chars, emoji width probe)
-requires "https://github.com/NagyZoltanPeter/nim-illview.git#5ead8c66e4843971ba27feccfd504a529ac323e0"
+# From the nimble registry; gen_lock.py --illview-rev v0.1.0 locks the release.
+requires "illview >= 0.1.0"
 # Versions come from logos-delivery's lock.
 requires "chronos", "chronicles", "results", "stew"
 

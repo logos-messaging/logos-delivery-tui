@@ -31,8 +31,8 @@ const
 
   Groups: seq[(string, seq[string])] = @[
     ("General", @["entry-layer", "mode", "preset", "cluster-id", "num-shards-in-network",
-      "shard", "protected-shard", "content-topic", "max-msg-size", "agent-string",
-      "local-storage-path", "log-level", "log-format", "nodekey"]),
+      "autosharding-shards", "shard", "protected-shard", "content-topic", "max-msg-size",
+      "agent-string", "local-storage-path", "log-level", "log-format", "nodekey"]),
     ("Messaging", @["reliability", "anonymity-level"]),
     ("Relay", @["relay", "relay-*", "staticnode", "entry-node"]),
     ("Discovery", @["discv5-*", "dns-discovery*", "peer-exchange*", "rendezvous",

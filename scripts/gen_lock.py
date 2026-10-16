@@ -8,12 +8,16 @@ logos-delivery's lock at the pinned revision, plus entries for logos_delivery
 and illview themselves. Checksums follow nimble's algorithm: sha1 over the
 sorted `git ls-files` list, feeding each file name then its content.
 
+illview comes from the nimble registry (`requires "illview >= X"`): pass its
+release tag as `--illview-rev` (e.g. v0.1.0); the entry records that release's
+version and commit.
+
 `--brokers-rev` replaces the lock's nim-brokers entry. One brokers is compiled
 into the binary, logos-delivery's code included, and nimble installs what the
 lock says even when logos-delivery's .nimble pins another commit.
 
 Usage:
-  scripts/gen_lock.py --ld-rev <commit> --illview-rev <commit> \
+  scripts/gen_lock.py --ld-rev <commit> --illview-rev <release tag> \
       [--brokers-rev <commit>] \
       [--ld-repo URL_OR_PATH] [--illview-repo URL_OR_PATH] [--brokers-repo URL_OR_PATH]
 
@@ -31,7 +35,7 @@ import sys
 import tempfile
 
 LD_URL = "https://github.com/logos-messaging/logos-delivery"
-ILLVIEW_URL = "https://github.com/NagyZoltanPeter/nim-illview.git"
+ILLVIEW_URL = "https://github.com/NagyZoltanPeter/nim-illview"  # registry url
 BROKERS_URL = "https://github.com/NagyZoltanPeter/nim-brokers.git"
 
 
@@ -133,8 +137,19 @@ def main():
         for d in iv_deps:
             if d not in pkgs:
                 sys.exit(f"illview dependency {d} missing from logos-delivery's lock")
+        iv_version = re.search(
+            r'^version\s*=\s*"([^"]+)"',
+            open(os.path.join(iv_dir, "illview.nimble")).read(), re.M).group(1)
+        # the entry claims a registry release: the commit must be its tag
+        tag = "v" + iv_version
+        try:
+            tag_rev = git("rev-parse", "--verify", "-q", tag + "^{commit}", cwd=iv_dir).strip()
+        except subprocess.CalledProcessError:
+            tag_rev = None
+        if tag_rev != iv_rev:
+            sys.exit(f"illview {iv_rev[:12]} is not release {tag}: pass the release tag as --illview-rev")
         pkgs["illview"] = {
-            "version": "#" + iv_rev,
+            "version": iv_version,
             "vcsRevision": iv_rev,
             "url": ILLVIEW_URL,
             "downloadMethod": "git",

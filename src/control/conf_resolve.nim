@@ -17,7 +17,7 @@ import logos_delivery/waku/factory/[waku_conf, networks_config]
 import tools/confutils/cli_args
 import ./[conf_flatten, tui_brokers]
 
-const PresetNames* = ["logos.test", "logos.dev", "twn", "status.prod"]
+const PresetNames* = ["logos.test", "logos.dev", "twn", "status.prod", "status.staging"]
   ## The names `toNetworkPresetConf` accepts (cli_args.nim); not exported there.
 
 type ConfShape* {.pure.} = enum
@@ -115,7 +115,7 @@ proc sourcedRows*(
     if k.hidden:
       row.value = "<hidden>"
     elif presetOnly.isOk and noPreset.isOk:
-      # A key missing from a build (e.g. numShardsInCluster without a preset,
+      # A key missing from a build (e.g. shardingConf.shards without a preset,
       # where sharding is static) differs from it.
       template differs(t: Table[string, string]): bool =
         k notin t or t.getOrDefault(k) != v
@@ -154,15 +154,14 @@ proc effectiveRows*(
 
 proc appliedPreset*(n: WakuNodeConf): string =
   ## The preset the kernel config build applies (cli_args.toNetworkPresetConf):
-  ## cluster-id 1 / 2 select twn / logos.dev whatever `preset` says.
+  ## cluster-id 1 selects twn whatever `preset` says.
   if n.clusterId.isSome and n.clusterId.get == 1:
     return "twn"
-  if n.clusterId.isSome and n.clusterId.get == 2:
-    return "logos.dev"
   case n.preset.strip.toLowerAscii
   of "logosdev": "logos.dev"
   of "logostest": "logos.test"
   of "statusprod": "status.prod"
+  of "statusstaging": "status.staging"
   else: n.preset.strip.toLowerAscii
 
 proc presetOf*(confJson: string): string =
@@ -189,9 +188,20 @@ proc presetFields*(p: NetworkPresetConf): seq[PresetField] =
   result.add field("cluster-id", "cluster-id", %p.clusterId.int)
   case p.shardingConf.kind
   of AutoSharding:
-    result.add field(
-      "num-shards-in-network", "num-shards-in-network", %p.shardingConf.numShardsInCluster.int
-    )
+    let shards = p.shardingConf.shards
+    var contiguous = true # 0 .. n-1: the shard count says it all
+    for i, s in shards:
+      contiguous = contiguous and s.int == i
+    if contiguous:
+      result.add field("num-shards-in-network", "num-shards-in-network", %shards.len)
+    else:
+      var items: seq[string]
+      for s in shards:
+        items.add $s
+      result.add PresetField(
+        cfgKey: "autosharding-shards", label: "autosharding-shards", isList: true,
+        items: items, cfgValue: $(%shards),
+      )
   of StaticSharding:
     result.add field("", "sharding", %"static")
   result.add field("max-msg-size", "max-msg-size", %p.maxMessageSize)
