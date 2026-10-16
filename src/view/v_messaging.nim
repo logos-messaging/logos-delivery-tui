@@ -27,6 +27,7 @@ type
     payload: seq[byte]
     msgHash: string
     status: ChatStatus
+    error: string
 
   MessagingView* = ref object
     page*: Window
@@ -39,7 +40,9 @@ type
     recs: seq[ChatRec] ## row for row with `chat`
     rowOf: tables.Table[string, int] ## chat key -> row index (outgoing status updates)
     # detail of the selected message
-    dFrom, dTopic, dHash, dRequest, dStatus: Input ## read-only
+    dFrom, dTopic, dHash, dRequest, dStatus, dError: Input ## read-only
+    fields: BoxLayout ## the rows above
+    errorRow: BoxLayout ## shown for a failed message only
     dTextBox: GroupBox
     dText, dBase64: TextView
 
@@ -88,6 +91,17 @@ func oneLine*(text: string): string =
   ## A row of the table: newlines as ⏎ (a CR-LF pair as one).
   text.replace("\r\n", "⏎").replace("\n", "⏎").replace("\r", "⏎")
 
+func errorText*(status: ChatStatus, error: string): string =
+  ## The detail pane's error row: what the node said ("" = no row).
+  if status != ChatStatus.Error: ""
+  elif error.len > 0: error.oneLine
+  else: "(no reason given)"
+
+proc showErrorRow(v: MessagingView, text: string) =
+  v.errorRow.visible = text.len > 0
+  v.dError.show(text)
+  v.fields.hint = (v.fields.hint.w, fixedHint(if text.len > 0: 6 else: 5))
+
 func row(r: ChatRec): seq[string] =
   @[r.ts, $r.dir, r.contentTopic, r.text.oneLine, $r.status]
 
@@ -99,6 +113,7 @@ proc showDetail(v: MessagingView) =
   if i < 0 or i >= v.recs.len:
     for l in [v.dFrom, v.dTopic, v.dHash, v.dRequest, v.dStatus]:
       l.show("")
+    v.showErrorRow("")
     v.dTextBox.borderTitle = "Decoded text"
     return
   let r = v.recs[i]
@@ -110,6 +125,7 @@ proc showDetail(v: MessagingView) =
   v.dHash.show(if r.msgHash.len > 0: r.msgHash else: "… (not known yet)")
   v.dRequest.show(if mine: r.key else: "–")
   v.dStatus.show($r.status)
+  v.showErrorRow(errorText(r.status, r.error))
   if r.payload.len > 0 and r.text == "0x" & r.payload.toHex():
     v.dTextBox.borderTitle = "Decoded text (binary, " & $r.payload.len & " bytes)"
     v.dText.addLine("(not text: shown as hex in the list)")
@@ -126,11 +142,20 @@ proc showDetail(v: MessagingView) =
     tv.follow = false
     tv.top = 0
 
+proc clearChat(v: MessagingView) =
+  ## The node stopped: its messages go with it (a restart may join another
+  ## network).
+  v.recs.setLen(0)
+  v.rowOf.clear()
+  v.chat.setRows(@[])
+  v.showDetail()
+
 proc onChatLine(v: MessagingView, e: TuiChatLine) =
   if e.dir == ChatDir.Outgoing and v.rowOf.hasKey(e.key):
     let i = v.rowOf.getOrDefault(e.key)
     if i < v.recs.len:
       v.recs[i].status = e.status
+      v.recs[i].error = e.error
       if e.msgHash.len > 0:
         v.recs[i].msgHash = e.msgHash
       var rows = v.chat.rows
@@ -205,10 +230,12 @@ proc newMessagingView*(): MessagingView =
   v.dHash = newValueField()
   v.dRequest = newValueField()
   v.dStatus = newValueField()
+  v.dError = newValueField()
   v.dText = newTextView()
   v.dBase64 = newTextView()
   v.dTextBox = section("Decoded text", v.dText)
   let fields = newVBox(spacing = 0)
+  v.fields = fields
   fields.dock = dkTop
   fields.hint = (prefHint(0, stretch = 1), fixedHint(5))
   fields.add field("from", v.dFrom)
@@ -216,6 +243,9 @@ proc newMessagingView*(): MessagingView =
   fields.add field("message hash", v.dHash)
   fields.add field("request id", v.dRequest)
   fields.add field("status", v.dStatus)
+  v.errorRow = field("error", v.dError)
+  v.errorRow.visible = false
+  fields.add v.errorRow
   let base64Box = section("Base64", v.dBase64)
   for box in [v.dTextBox, base64Box]:
     box.styleOv.bg = bgGray # window surface, not the cyan group surface
@@ -242,6 +272,12 @@ proc newMessagingView*(): MessagingView =
     tuiCtx,
     proc(e: TuiChatLine) {.async: (raises: []).} =
       v.onChatLine(e),
+  )
+  discard TuiNodeState.listen(
+    tuiCtx,
+    proc(e: TuiNodeState) {.async: (raises: []).} =
+      if e.state == NodeState.Stopped:
+        v.clearChat(),
   )
   v
 

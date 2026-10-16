@@ -159,7 +159,7 @@ logos_delivery_tui [--node-conf=<file.json>] [--scenario=<file.json>] [--headles
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Construction:** docking on the desktop. The footer is a `ControlBar(lines=2)` with `dkBottom`; the log pane is a `TextView` with `dkBottom` and a fixed height. The sidebar is a `TreeView` with `dkLeft`, and the main area is a `TabView` with `dkFill`. Docking honours `visible`; `Splitter` does not, which is why it is avoided.
+- **Construction:** docking on the desktop. The footer is a `ControlBar(lines=2)` with `dkBottom`; the log pane is a `TextView` with `dkBottom` and a fixed height, which the 1-row `LogDivider` above it (`src/view/log_divider.nim`) changes by mouse drag or Alt+Up/Down, so the pane keeps its height when the terminal is resized. The sidebar is a `TreeView` with `dkLeft`, and the main area is a `TabView` with `dkFill`. Docking honours `visible`; `Splitter` does not, which is why it is avoided.
 - **Sidebar:** **F9** toggles it, as does a menu entry. Activating a node opens a tab, or focuses it if already open. Each view is built **once** and then added and removed, following illview's ORC churn advice; it is harmless under refc too.
 - **Footer counter semantics** (see **[D6]**):
 

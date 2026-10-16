@@ -51,14 +51,15 @@ proc printable*(payload: seq[byte]): string =
   ## Payload as text (newlines kept) when `isText`, otherwise as 0x-hex.
   if payload.isText: string.fromBytes(payload) else: "0x" & payload.toHex()
 
-proc status(c: MessagingCtl, requestId, msgHash: string, st: ChatStatus) =
+proc status(c: MessagingCtl, requestId, msgHash: string, st: ChatStatus, error = "") =
   c.echoes.hashKnown(requestId, msgHash)
   if requestId notin c.outgoing:
     return
   TuiChatLine.emit(
     tuiCtx,
     TuiChatLine(
-      key: requestId, dir: ChatDir.Outgoing, status: st, msgHash: msgHash, ts: nowTs()
+      key: requestId, dir: ChatDir.Outgoing, status: st, error: error, msgHash: msgHash,
+      ts: nowTs(),
     ),
   )
   # Propagated is not final: the store confirmation (Sent) follows it when
@@ -112,7 +113,7 @@ proc attach(c: MessagingCtl, ld: LogosDelivery) =
     c.brokerScope,
     proc(e: MessageErrorEvent) {.async: (raises: []).} =
       warn "message error", requestId = $e.requestId, error = e.error
-      c.status($e.requestId, e.messageHash, ChatStatus.Error),
+      c.status($e.requestId, e.messageHash, ChatStatus.Error, e.error),
   )
   discard MessageQueuedEvent.listen(
     c.brokerScope,

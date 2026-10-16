@@ -12,7 +12,7 @@ import illview
 import ../app/cli
 import ../control/tui_brokers
 import ./[footer, sidebar, theme, v_messaging, v_node_health, v_config, v_node_mgmt,
-  v_scenario, v_placeholder, log_pane, log_filter_dlg]
+  v_scenario, v_placeholder, log_pane, log_filter_dlg, log_divider]
 
 logScope:
   topics = "ldtui shell"
@@ -25,6 +25,7 @@ type Shell = ref object
   tabs: TabView
   side: Sidebar
   logPane: TextView
+  logDivider: LogDivider ## drag / Alt+Up/Down resizes `logPane`
   log: LogPane ## the filtered feed behind `logPane`
   filtering: bool ## the filter dialog is open
   footer: Footer
@@ -54,7 +55,8 @@ proc openView(sh: Shell, name: string) =
 
 proc toggleLogPane(sh: Shell) =
   sh.logPane.visible = not sh.logPane.visible
-  if not sh.logPane.visible and sh.logPane.isFocused:
+  sh.logDivider.visible = sh.logPane.visible
+  if not sh.logPane.visible and (sh.logPane.isFocused or sh.logDivider.isFocused):
     focusInto(sh.app.desktop, sh.tabs)
   sh.app.desktop.invalidate()
 
@@ -134,6 +136,8 @@ proc build(sh: Shell) =
   sh.logPane.hint = (prefHint(0, stretch = 1), fixedHint(12))
   sh.logPane.visible = true # F3 hides it
   app.desktop.add sh.logPane
+  sh.logDivider = newLogDivider(sh.logPane) # docked after the pane: above it
+  app.desktop.add sh.logDivider
 
   sh.main = newGroup()
   sh.main.dock = dkFill

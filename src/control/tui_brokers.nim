@@ -151,6 +151,7 @@ EventBroker:
     payload*: seq[byte] ## raw payload (empty on outgoing status updates)
     msgHash*: string ## message hash; "" while an outgoing one is not yet known
     status*: ChatStatus
+    error*: string ## why, when `status` is Error
     ts*: string
 
 EventBroker:
