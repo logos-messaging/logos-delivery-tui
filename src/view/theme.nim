@@ -18,5 +18,8 @@ proc ldtuiTheme*(): Theme =
   result.styles[tkTableHeader] = style(fgBlack, bgCyan) # distinct from the rows
   result.styles[tkScrollBar] = style(fgCyan, bgBlue)
   result.styles[tkProgress] = style(fgCyan, bgBlue)
+  result.styles[tkWindowTitle] = style(fgWhite, bgBlue, bright = true)
+    # window titles and the selected tab: bright white on the default gray is
+    # unreadable on some terminals (Terminal.app)
 
 {.pop.}

@@ -147,6 +147,7 @@ proc build(sh: Shell) =
       sh.openView(name)
   sh.tabs = newTabView()
   sh.tabs.dock = dkFill
+  sh.tabs.border = bkSingle # TabView is frameless: close it like the sidebar
   sh.split = newSplitter(axH, sh.side.tree, sh.tabs, pos = 26)
   sh.split.dock = dkFill
   sh.main.add sh.split
