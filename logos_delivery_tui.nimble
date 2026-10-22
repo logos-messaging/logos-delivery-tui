@@ -8,6 +8,7 @@ description   = "Terminal UI and headless scenario runner around an in-process L
 license       = "MIT or Apache License 2.0"
 srcDir        = "src"
 bin           = @["logos_delivery_tui"]
+binDir        = "build"
 skipDirs      = @["tests"]
 
 const RequiredNimblePin = "0.26.0"

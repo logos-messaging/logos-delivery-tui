@@ -266,6 +266,16 @@ Under refc, the controller tests also run under ASAN (AddressSanitizer). The poi
 | Async providers | Broker async providers must be plain `{.async.}`. The provider type is `Future[T]`, and a `{.async: (raises: []).}` lambda yields an `InternalRaisesFuture` that does not match. | `src/control/*` |
 | Loop closures | Closures created in a loop body share one environment in Nim. The log-level menu items initially all set the last level. Each item's closure is now built in a factory proc. | `src/view/footer.nim` |
 
+### Regenerating `nimble.lock`
+
+After bumping any pin in `logos_delivery_tui.nimble`, regenerate the lock. The
+revisions must match the ones in the `.nimble`:
+
+```sh
+python3 scripts/gen_lock.py --ld-rev <logos-delivery commit> --illview-rev <illview release tag, e.g. v0.1.0> \
+    --brokers-rev <nim-brokers commit>
+```
+
 ### Verification (macOS arm64, refc)
 
 | Check | Result |
