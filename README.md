@@ -1,17 +1,33 @@
 # logos-delivery-tui
 
-A native Nim terminal UI and headless scenario runner around one in-process
-[logos-delivery](https://github.com/logos-messaging/logos-delivery) node
-(`LogosDelivery`). It is meant for internal testing, both locally and against
-the live fleet. You can use it to:
+A terminal UI and headless scenario runner for one in-process
+[logos-delivery](https://github.com/logos-messaging/logos-delivery) node. It is
+built for testing, both locally and against the live fleet.
 
-- send and receive messages (manually or on a schedule)
-- see node health, peers and mesh
-- watch the node log
-- edit and save the node config
-- run scenarios headless in a harness
+![Messaging](docs/images/messaging.webp)
 
-Design and decisions: [docs/DESIGN.md](docs/DESIGN.md).
+## What it can do
+
+- **Messaging:** subscribe to content topics, then send text or base64
+  payloads. Each message is tracked through propagated ✓ / sent ✓✓ / error.
+- **Node health:** see connection and protocol health, topic mesh, and peer
+  trees by protocol or by peer. You can disconnect peers or dial a multiaddr.
+- **Configuration:** edit all of the node's options and presets, with every
+  value checked by the node's own config translation. Then start or restart
+  the node, and see the effective config it actually runs with.
+- **Live node log:** filter it with AND/OR rules on level, message, topics and
+  any property, save the filters, or drop into the full terminal.
+- **Scenarios:** scripted send, expect and peer steps. Run them in the TUI, or
+  headless in CI (the exit code reports PASS or FAIL).
+
+| Configuration | Node running |
+|---|---|
+| ![Node management](docs/images/config-editor.webp) | ![Node running](docs/images/config-running.webp) |
+
+The control bar shows the network, peers, message counters, health and log
+level:
+
+![Control bar](docs/images/control-bar.webp)
 
 ## Platforms
 
@@ -20,16 +36,10 @@ Design and decisions: [docs/DESIGN.md](docs/DESIGN.md).
 | `--mm:refc` | ✅ | ✅ | ❌ | logos-delivery is refc-only. illview has no Windows input driver. |
 | `--mm:orc` | ❌ | ❌ | ❌ | logos-delivery does not support ORC. |
 
-Nim is pinned to the version logos-delivery pins (`nim == 2.2.6`). Nimble is
-`0.26.0`, the same as logos-delivery.
-
 ## Build
 
-> **Nimble 0.26.0 is required.** `nimble.lock` comes from logos-delivery, which
-> pins nimble 0.26.0. Older nimbles (e.g. 0.20.x) cannot use it: they fail with
-> `Downloaded package checksum does not correspond to that in the lock file`
-> for `nim`, then with `Failed to get VCS revision` or git tag fetch errors.
-> Check with `nimble -v`.
+Requires Nim `2.2.6` and **Nimble `0.26.0`**, the same versions logos-delivery
+pins. Check with `nimble -v`.
 
 ```sh
 # nimble 0.26.0 (logos-delivery's scripts/install_nimble.sh installs it to ~/.local/nimble-0.26.0)
@@ -37,56 +47,23 @@ export PATH=$HOME/.local/nimble-0.26.0/bin:$PATH
 
 nimble setup --localdeps -y    # deps from nimble.lock into ./nimbledeps
 nimble buildNativeDeps         # miniupnpc, libnatpmp, bearssl, leopard cmake stubs
-nimble build                   # -> ./logos_delivery_tui
+nimble build                   # -> ./build/logos_delivery_tui
 nimble test                    # unit tests
-nimble tui                     # build + run with --node-conf=conf/logos-dev.json
-nimble tui --headless --scenario=conf/scenarios/ping.json   # any args pass through
 ```
-
-The task is named `tui` because nimble's built-in `nimble run` shadows a task
-called `run`. The built-in works too: `nimble run logos_delivery_tui <args>`
-builds `./logos_delivery_tui` and runs it with exactly the arguments given, with
-no default config.
-
-RLN is off by default (`-d:disable_rln`). To build with RLN, pass `-d:rln` and
-point `LIBRLN_FILE` at a `librln_v2.0.2.a` (logos-delivery `make librln`
-builds one).
-
-### Dependency pinning
-
-Nimble cannot solve logos-delivery's dependency graph from its `.nimble` alone,
-so the build always goes through `nimble.lock`. That lock is logos-delivery's
-own lock at the pinned revision, plus entries for `logos_delivery` and
-`illview` (a [nimble registry](https://nimble.directory/pkg/illview) release),
-and with the nim-brokers entry replaced by our own pin (a single brokers is
-compiled into the binary, so logos-delivery runs on it too). It is generated
-by:
-
-```sh
-python3 scripts/gen_lock.py --ld-rev <logos-delivery commit> --illview-rev <illview release tag, e.g. v0.1.0> \
-    --brokers-rev <nim-brokers commit>
-```
-
-After bumping any pin in `logos_delivery_tui.nimble`, re-run the script.
-The revisions must match the ones in the `.nimble`.
 
 ## Run
 
 ```sh
-./logos_delivery_tui --node-conf=conf/logos-test.json                    # TUI, node autostarts
-./logos_delivery_tui                                                     # TUI, config view, node stopped
-./logos_delivery_tui --node-conf=conf/logos-test.json --scenario=conf/scenarios/ping.json
-./logos_delivery_tui --headless --scenario=conf/scenarios/ping.json --report=ping.jsonl
+nimble tui                                                    # build + run with conf/logos-dev.json
+./build/logos_delivery_tui --node-conf=conf/logos-test.json   # TUI, node autostarts
+./build/logos_delivery_tui                                    # TUI, config view, node stopped
+./build/logos_delivery_tui --node-conf=conf/logos-test.json --scenario=conf/scenarios/ping.json
+./build/logos_delivery_tui --headless --scenario=conf/scenarios/ping.json --report=ping.jsonl
 ```
-
-`--node-conf` takes the same JSON as `liblogosdelivery`'s `create_node` and
-delivery-module's `createNode`. That is either the layered form
-(`entryLayer`, `mode`, `preset`, `kernelConf`, `messagingOverrides`,
-`channelsOverrides`) or the legacy flat `WakuNodeConf` form.
 
 | Option | Meaning |
 |---|---|
-| `--node-conf=<file>` | Node config JSON. |
+| `--node-conf=<file>` | Node config JSON (same format as `liblogosdelivery`'s `create_node`). |
 | `--scenario=<file>` | Scenario to load (TUI) or run (headless). |
 | `--headless` | No TUI. Logs go to the terminal. Exit code 0 means PASS, 1 FAIL, 2 bad input, 130 interrupted. Without a scenario, the node runs until Ctrl-C. |
 | `--log-level=<lvl>` | `TRACE` / `DEBUG` / `INFO` / `NOTICE` / `WARN` / `ERROR`. Overrides the config and survives restarts. |
@@ -94,181 +71,11 @@ delivery-module's `createNode`. That is either the layered form
 | `--report=<path>` | Headless only: scenario progress as JSON lines. |
 | `--autostart=false` | Do not start the node at launch. |
 
-### TUI
+In the TUI: **F2** terminal · **F3** logs · **F4** log filter · **F9** menu ·
+**F10** quit.
 
-```
-┌ Menu ────────┐[Messaging][Node health][Configuration]
-│ Channels     │
-│ Messaging    │   active view
-│ …            │
-└──────────────┘
- logos.test │ peers 35 (19 conn) │ sent 3 · prop 3 · recv 5 · relayed 40      [Log: INFO ▾]
- [16Uiu2…x9Qa ▾]  ● Connected / READY          F2 terminal  F3 logs  F9 menu  F10 quit
-```
+## Documentation
 
-| Key | Action |
-|---|---|
-| Click / Enter on a sidebar entry | Open that view as a tab, or focus it if already open. Arrow keys only move the selection. |
-| F2 | Terminal mode: the captured log is replayed into the shell scrollback and then streams live. **Enter** returns to the TUI. |
-| F3 | Show or hide the bottom log pane (shown at start). |
-| F9 | Show or hide the sidebar. Its width follows the divider on its right (drag it). |
-| F10 | Quit. The node is stopped cleanly. |
-| Tab / Shift-Tab | Move focus. |
-| Ctrl+PgUp / Ctrl+PgDn | Switch tabs. |
-| Alt+letter | Activate the button with that underlined letter. |
-
-Views:
-
-- **Messaging** has a content topic field with Subscribe and Unsubscribe
-  buttons, and a payload editor. The payload is sent as text, or decoded first
-  if the base64 box is ticked. Below that is a chat table that tracks each
-  sent message through propagated ✓ / sent ✓✓ (store-confirmed) / error, and
-  lists received messages as live or history. Your own message coming back
-  on the subscription is not listed again. Text with newlines is shown with
-  ⏎; payloads that are not text show as hex.
-
-  Under the table (drag the divider to resize) is the selected message in
-  detail: from (`mine` or `other party`), direction and time, content topic,
-  message hash, request id (yours only), status, and side by side the
-  decoded text (all lines) and the payload as base64. A new message selects
-  itself; click a row to see another.
-- **Admin → Node health** shows connection status, node health, protocol
-  health and subscribed topics with their mesh and health. Connected peers are
-  shown as two trees in tabs (Ctrl+PgUp / Ctrl+PgDn switch between them):
-  - **By protocol:** protocol → peer → addresses.
-  - **By peer:** peer → protocols / addresses.
-
-  Peer ids are shortened, and long rows scroll sideways with Shift+←/→,
-  Shift+Home/End or Shift+wheel. Expanded branches and the selection survive
-  the 3 s refresh. From here you can disconnect the selected peer (select the
-  peer row or any row under it), drop all peers or dial a multiaddr.
-- **Admin → Current configuration** (view only) shows the running node,
-  or the last one started, with a status line saying which:
-  - **Effective configuration:** what the node built at start and runs
-    with, read from the node itself. Each row has a **source**: `config`
-    (the JSON), `preset`, `default`, or `runtime` (changed by the running
-    node, such as a bound port). Secrets are shown as `<hidden>`.
-  - **Preset in use:** the options of the preset the node applied. A
-    `cluster-id` of 1 or 2 selects twn / logos.dev, as logos-delivery does.
-    The pane is hidden when no preset was applied.
-  - **Below:** the exact JSON the node was started from, and its kind
-    (`LogosDeliveryConf` or `LogosDeliveryNodeConf`).
-
-  It changes only when a node starts successfully; edit and start nodes in
-  Node management.
-- **Node management** (first in the menu; the app opens on it) edits the node config as a
-  `LogosDeliveryNodeConf`: the logosdeliverynode command line written as flat
-  JSON with the CLI option names (`entry-layer`, `mode`, `reliability`,
-  `anonymity-level` and every kernel option). Start / Apply & restart build
-  the node with `LogosDelivery.new(LogosDeliveryNodeConf)`. A config in a
-  `LogosDeliveryConf` shape (a `--node-conf` file, Load…, Revert) is
-  converted when shown:
-
-  | From | To |
-  |---|---|
-  | layered | `entry-layer` (default `channels`), `preset`, `mode`; `messagingOverrides` keys lifted to the top level |
-  | kernel entry layer | `entry-layer: kernel`; `kernelConf` keys lifted |
-  | legacy flat / preset + mode only | kept, with `entry-layer: channels` |
-
-  What has no `LogosDeliveryNodeConf` option (`channelsOverrides`, the
-  messaging-only rate-limit / send-queue / backfill keys) is listed in the
-  status line.
-  - **Left: every option** (107), grouped (General, Messaging, Relay,
-    Discovery, Store, …), as option │ value │ set by (`json` / `default`) │
-    description. The list comes from the conf types, so it follows
-    logos-delivery. **Double-click or Enter** edits: a bool toggles, a choice
-    (entry-layer, mode, log-level, …) pops a menu, anything else opens an
-    input box (lists comma-separated; empty input resets to the default).
-    **Right-click** offers Edit… / Reset to default.
-  - **Right: the presets** as a list, and the options the selected one sets.
-    Double-click / Enter on a preset makes it the `preset`; on an option it
-    puts that value into the JSON (a list item is appended).
-
-  Every edit is checked with the node's own translation (the same steps
-  `LogosDelivery.new` runs) before the JSON changes; a rejected value leaves
-  it alone. Both configuration views keep their own editor.
-- **Testing → Send scenario** lets you edit, load, save and run a scenario,
-  and shows its progress. Scenarios are saved to
-  `~/.config/logos-delivery-tui/scenarios/`.
-- **Channels**, **Kernel messaging** and **Peers** are placeholders, to be
-  specified.
-
-The footer (control bar) is a light-gray strip:
-
-- **Line 1, left:** the network, mode and mounted layer, such as
-  `logos.test · Core · channels`. The network is the preset in use, or
-  `cluster <id>` without one. The mode (Core / Edge) is left out for the
-  kernel layer, which has none. The layer is what the running node actually
-  mounted. These are followed by the peer store size with the number of
-  connected peers, then the message counters.
-- **Line 1, right:** the log-level selector.
-- **Line 2, left:** this node's short peer id as a button. Its menu lists the
-  full peer id, the announced multiaddrs and the mounted protocols. Next to it
-  is the health block, coloured by connection status: green Connected, yellow
-  PartiallyConnected, red Disconnected, black when the node is not running.
-- **Line 2, right:** the hotkeys, with the keys in red.
-
-The message counters are:
-
-| Counter | Event |
-|---|---|
-| sent | `MessageSentEvent` |
-| prop | `MessagePropagatedEvent` |
-| recv | `MessageReceivedEvent` |
-| relayed | `MessageSeenEvent` (all relay traffic on our shards) |
-| err | `MessageErrorEvent` |
-
-## Scenarios
-
-```json
-{
-  "name": "ping",
-  "nodeConf": "../logos-test.json",
-  "startNode": true,
-  "steps": [
-    { "action": "waitHealthy", "status": "PartiallyConnected", "timeoutS": 90 },
-    { "action": "subscribe", "contentTopic": "/logos-delivery-tui/1/ping/proto" },
-    { "action": "sendPeriodic", "contentTopic": "/logos-delivery-tui/1/ping/proto",
-      "payload": "ping #{seq} from {peerId}", "intervalMs": 2000, "count": 5 },
-    { "action": "sleep", "ms": 11000 },
-    { "action": "expect", "metric": "sent", "op": ">=", "value": 5, "timeoutS": 30 }
-  ]
-}
-```
-
-`nodeConf` is optional and resolved relative to the scenario file.
-`startNode` defaults to `true`.
-
-| Action | Parameters |
-|---|---|
-| `waitHealthy` | `status` (`Connected` (default) or `PartiallyConnected`), `timeoutS` (60) |
-| `subscribe` / `unsubscribe` | `contentTopic` |
-| `send` | `contentTopic`, `payload` (text with placeholders) or `payloadBase64`, `ephemeral` |
-| `sendPeriodic` | Same as `send`, plus `intervalMs`, `count` (0 = until the scenario ends) and `jitterMs`. It runs in the background. |
-| `sleep` | `ms` |
-| `disconnectPeer` | `peerId` |
-| `disconnectAllPeers` | — |
-| `dialPeer` | `multiaddr` |
-| `stopNode` / `startNode` | — |
-| `restartNode` | `nodeConf` (optional, relative to the scenario) |
-| `setLogLevel` | `level` |
-| `expect` | `metric` (`sent` / `propagated` / `received` / `seen` / `errors` / `peers`), `op` (`>=` `>` `<=` `<` `==` `!=`), `value`, `timeoutS` (0 = check once) |
-| `log` | `msg` |
-
-Payload placeholders are `{seq}`, `{peerId}`, `{ts}` and `{rand:N}`.
-
-Only this process's node and its connections can be manipulated. Killing other
-fleet or harness nodes is out of scope.
-
-## Layout
-
-```
-src/
-  logos_delivery_tui.nim   entry: CLI -> control wiring -> TUI | headless
-  app/                     cli, settings (XDG save/load), node_host (owns LogosDelivery)
-  control/                 nim-brokers control layer (never imports illview)
-    tui_brokers.nim        the view <-> control contract (EventBroker / RequestBroker on tuiCtx)
-    *_ctl.nim              one controller per area, listening to logos-delivery's brokers
-  view/                    illview views (never import logos_delivery)
-  headless/runner.nim      headless mode
-```
+- [User guide](docs/USER_GUIDE.md): key combinations, views, configuration,
+  log view and filtering, scenario format.
+- [Design](docs/DESIGN.md): architecture, decisions, dependency pinning.
